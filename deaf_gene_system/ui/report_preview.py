@@ -221,7 +221,6 @@ class ReportPreview(QWidget):
                 padding: 20px;
                 font-size: 12px;
                 line-height: 1.6;
-                color: #333;
             }
         """)
         

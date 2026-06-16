@@ -57,26 +57,26 @@ class DeafGeneSystemApp:
                 color: #333;
             }
             
-            QPushButton {
-                background-color: #0078d4;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                min-width: 80px;
+            QLabel {
+                color: #333;
             }
             
-            QPushButton:hover {
-                background-color: #106ebe;
+            QTextEdit {
+                color: #333;
             }
             
-            QPushButton:pressed {
-                background-color: #005a9e;
+            QListWidget {
+                color: #333;
             }
             
-            QPushButton:disabled {
-                background-color: #cccccc;
-                color: #666666;
+            QComboBox {
+                color: #333;
+                background-color: white;
+            }
+            
+            QGroupBox {
+                color: #333;
+                font-weight: bold;
             }
             
             QLineEdit {
@@ -84,6 +84,7 @@ class DeafGeneSystemApp:
                 border-radius: 4px;
                 padding: 6px;
                 background-color: white;
+                color: #333;
             }
             
             QLineEdit:focus {
@@ -94,10 +95,12 @@ class DeafGeneSystemApp:
                 background-color: white;
                 border: 1px solid #ddd;
                 gridline-color: #eee;
+                color: #333;
             }
             
             QTableWidget::item {
                 padding: 4px;
+                color: #333;
             }
             
             QTableWidget::item:selected {
@@ -116,6 +119,7 @@ class DeafGeneSystemApp:
                 margin-right: 2px;
                 border-top-left-radius: 4px;
                 border-top-right-radius: 4px;
+                color: #333;
             }
             
             QTabBar::tab:selected {
@@ -140,6 +144,28 @@ class DeafGeneSystemApp:
             QMenuBar::item:selected {
                 background-color: #0078d4;
                 color: white;
+            }
+            
+            QPushButton {
+                background-color: #0078d4;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                min-width: 80px;
+            }
+            
+            QPushButton:hover {
+                background-color: #106ebe;
+            }
+            
+            QPushButton:pressed {
+                background-color: #005a9e;
+            }
+            
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
             }
         """
         self.app.setStyleSheet(style)
