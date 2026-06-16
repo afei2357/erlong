@@ -1,0 +1,137 @@
+{
+    "采血卡号": "TEST005",
+    "样本编号": "S005",
+    "采血单位": "杭州市妇产科医院",
+    "初筛结果": "MT-RNR1 m.1555A>G 正常",
+    "母亲姓名": "孙七",
+    "婴儿性别": "男",
+    "采血日期": "2024-06-19",
+    "genes": [
+        {
+            "name": "GJB2",
+            "trait": "先天性重度或极重度感音神经性耳聋",
+            "mutations": [
+                {
+                    "name": "c.35delG",
+                    "results": "正常",
+                    "id": 1
+                },
+                {
+                    "name": "c.176_191del16",
+                    "results": "正常",
+                    "id": 2
+                },
+                {
+                    "name": "c.235delC",
+                    "results": "正常",
+                    "id": 3
+                },
+                {
+                    "name": "c.299_300delAT",
+                    "results": "正常",
+                    "id": 4
+                }
+            ]
+        },
+        {
+            "name": "GJB3",
+            "trait": "后天高频感音神经性耳聋",
+            "mutations": [
+                {
+                    "name": "c.538C>T",
+                    "results": "正常",
+                    "id": 5
+                },
+                {
+                    "name": "c.547G>A",
+                    "results": "正常",
+                    "id": 6
+                }
+            ]
+        },
+        {
+            "name": "SLC26A4\n(PDS)",
+            "trait": "大前庭水管综合征，先天或后天中度 以上感音神经性耳聋",
+            "mutations": [
+                {
+                    "name": "c.281C>T",
+                    "results": "正常",
+                    "id": 7
+                },
+                {
+                    "name": "c.589G>A",
+                    "results": "正常",
+                    "id": 8
+                },
+                {
+                    "name": "IVS7-2A>G (c.919-2A>G)",
+                    "results": "正常",
+                    "id": 9
+                },
+                {
+                    "name": "c.1174A>T",
+                    "results": "正常",
+                    "id": 10
+                },
+                {
+                    "name": "c.1226G>A",
+                    "results": "正常",
+                    "id": 11
+                },
+                {
+                    "name": "c.1229C>T",
+                    "results": "正常",
+                    "id": 12
+                },
+                {
+                    "name": "IVS15+5G>A (c.1707+5G>A)",
+                    "results": "正常",
+                    "id": 13
+                },
+                {
+                    "name": "c.1975G>C",
+                    "results": "正常",
+                    "id": 14
+                },
+                {
+                    "name": "c.2027T>A",
+                    "results": "正常",
+                    "id": 15
+                },
+                {
+                    "name": "c.2162C>T",
+                    "results": "正常",
+                    "id": 16
+                },
+                {
+                    "name": "c.2168A>G",
+                    "results": "正常",
+                    "id": 17
+                }
+            ]
+        },
+        {
+            "name": "MT-RNR1\n(12S rRNA)",
+            "trait": "药物敏感性耳聋",
+            "mutations": [
+                {
+                    "name": "m.1494C>T",
+                    "results": "正常",
+                    "id": 18
+                },
+                {
+                    "name": "m.1555A>G",
+                    "results": "正常",
+                    "id": 19
+                },
+                {
+                    "name": "m.1095T>C",
+                    "results": "正常",
+                    "id": 20
+                }
+            ]
+        }
+    ],
+    "is_mutation": true,
+    "reportdate": "2026-06-16"
+}

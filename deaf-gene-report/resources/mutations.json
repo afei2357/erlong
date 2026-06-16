@@ -1,0 +1,129 @@
+{
+    "GJB2": {
+        "name": "GJB2",
+        "trait": "先天性重度或极重度感音神经性耳聋",
+        "mutations": {
+            "c.35delG": {
+                "name": "c.35delG",
+                "results": "正常",
+                "id":1
+            },
+            "c.176_191del16": {
+                "name": "c.176_191del16",
+                "results": "正常",
+                "id":2
+            },
+            "c.235delC": {
+                "name": "c.235delC",
+                "results": "正常",
+                "id":3
+            },
+            "c.299_300delAT": {
+                "name": "c.299_300delAT",
+                "results": "正常",
+                "id":4
+            }
+        }
+    },
+    "GJB3": {
+        "name": "GJB3",
+        "trait": "后天高频感音神经性耳聋",
+        "mutations": {
+            "c.538C>T": {
+                "name": "c.538C>T",
+                "results": "正常",
+                "id":5
+            },
+            "c.547G>A": {
+                "name": "c.547G>A",
+                "results": "正常",
+                "id":6
+            }
+        }
+    },
+    "SLC26A4": {
+        "name": "SLC26A4\n(PDS)",
+        "trait": "大前庭水管综合征，先天或后天中度 以上感音神经性耳聋",
+        "mutations": {
+            "c.281C>T": {
+                "name": "c.281C>T",
+                "results": "正常",
+                "id":7
+            },
+            "c.589G>A": {
+                "name": "c.589G>A",
+                "results": "正常",
+                "id":8
+            },
+            "IVS7-2A>G": {
+                "name": "IVS7-2A>G (c.919-2A>G)",
+                "results": "正常",
+                "id":9
+            },
+            "c.1174A>T": {
+                "name": "c.1174A>T",
+                "results": "正常",
+                "id":10
+            },
+            "c.1226G>A": {
+                "name": "c.1226G>A",
+                "results": "正常",
+                "id":11
+            },
+            "c.1229C>T": {
+                "name": "c.1229C>T",
+                "results": "正常",
+                "id":12
+            },
+            "IVS15+5G>A": {
+                "name": "IVS15+5G>A (c.1707+5G>A)",
+                "results": "正常",
+                "id":13
+            },
+            "c.1975G>C": {
+                "name": "c.1975G>C",
+                "results": "正常",
+                "id":14
+            },
+            "c.2027T>A": {
+                "name": "c.2027T>A",
+                "results": "正常",
+                "id":15
+            },
+            "c.2162C>T": {
+                "name": "c.2162C>T",
+                "results": "正常",
+                "id":16
+            },
+            "c.2168A>G": {
+                "name": "c.2168A>G",
+                "results": "正常",
+                "id":17
+            }
+        }
+    },
+    "MT-RNR1": {
+        "name": "MT-RNR1\n(12S rRNA)",
+        "trait": "药物敏感性耳聋",
+        "mutations": {
+            "m.1494C>T": {
+                "name": "m.1494C>T",
+                "results": "正常",
+                "id":18
+            },
+            "m.1555A>G": {
+                "name": "m.1555A>G",
+                "results": "正常",
+                "id":19
+            },
+            "m.1095T>C": {
+                "name": "m.1095T>C",
+                "results": "正常",
+                "id":20
+            }
+        }
+    }
+}
+
+
+
