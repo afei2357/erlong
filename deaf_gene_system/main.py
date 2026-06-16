@@ -54,6 +54,7 @@ class DeafGeneSystemApp:
             QWidget {
                 font-family: "Microsoft YaHei";
                 font-size: 9pt;
+                color: #333;
             }
             
             QPushButton {

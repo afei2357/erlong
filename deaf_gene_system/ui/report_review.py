@@ -140,9 +140,11 @@ class ReportReview(QWidget):
                 background-color: white;
                 border-radius: 8px;
                 gridline-color: #eee;
+                color: #333;
             }
             QTableWidget::item {
                 padding: 8px;
+                color: #333;
             }
             QTableWidget::item:selected {
                 background-color: #0078d4;

@@ -122,10 +122,12 @@ class ReportPreview(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 padding: 4px;
+                color: #333;
             }
             QListWidget::item {
                 padding: 8px;
                 border-radius: 4px;
+                color: #333;
             }
             QListWidget::item:selected {
                 background-color: #0078d4;
@@ -219,6 +221,7 @@ class ReportPreview(QWidget):
                 padding: 20px;
                 font-size: 12px;
                 line-height: 1.6;
+                color: #333;
             }
         """)
         

@@ -165,9 +165,11 @@ class Statistics(QWidget):
                 background-color: white;
                 border-radius: 8px;
                 gridline-color: #eee;
+                color: #333;
             }
             QTableWidget::item {
                 padding: 8px;
+                color: #333;
             }
             QTableWidget::item:selected {
                 background-color: #0078d4;
@@ -230,6 +232,22 @@ class Statistics(QWidget):
         gene_layout = QVBoxLayout()
         
         self.gene_distribution_table = QTableWidget()
+        self.gene_distribution_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border-radius: 8px;
+                gridline-color: #eee;
+                color: #333;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                color: #333;
+            }
+            QTableWidget::item:selected {
+                background-color: #0078d4;
+                color: white;
+            }
+        """)
         self.gene_distribution_table.setColumnCount(3)
         self.gene_distribution_table.setHorizontalHeaderLabels(["基因名称", "突变数量", "占比"])
         self.gene_distribution_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
