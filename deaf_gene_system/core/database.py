@@ -44,6 +44,17 @@ class DatabaseManager:
             cursor.execute(query)
         return cursor
         
+    def fetch_one(self, query: str, params: tuple = None) -> Optional[Dict]:
+        """执行查询并返回单行结果（转换为dict）"""
+        cursor = self.execute_query(query, params)
+        row = cursor.fetchone()
+        return dict(row) if row else None
+        
+    def fetch_all(self, query: str, params: tuple = None) -> List[Dict]:
+        """执行查询并返回所有结果（转换为dict列表）"""
+        cursor = self.execute_query(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+        
     def commit(self):
         """提交事务"""
         self.connection.commit()
