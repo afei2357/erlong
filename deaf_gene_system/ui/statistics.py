@@ -367,10 +367,8 @@ class Statistics(QWidget):
             mutation_type = self.mutation_filter.currentData()
             result_status = self.result_filter.currentData()
             
-            conditions = []
+            conditions = ["DATE(s.created_at) BETWEEN ? AND ?"]
             params = [start_date, end_date]
-            
-            conditions.append("DATE(s.created_at) BETWEEN ? AND ?")
             
             if hospital:
                 conditions.append("s.hospital = ?")
@@ -378,53 +376,56 @@ class Statistics(QWidget):
             
             where_clause = " WHERE " + " AND ".join(conditions)
             
-            gene_conditions = []
-            gene_params = []
+            gene_filter_sql = ""
+            gene_filter_params = []
             
             if gene_name:
-                gene_conditions.append("g.gene_name = ?")
-                gene_params.append(gene_name)
+                gene_filter_sql += " AND g.gene_name = ?"
+                gene_filter_params.append(gene_name)
             
             if mutation_type:
                 mapping = {
                     'pathogenic': '致病性',
-                    'likely_pathogenic': '可能致病性',
+                    'likely_pathogenic': '疑似致病',
                     'benign': '良性'
                 }
-                gene_conditions.append("g.pathogenicity = ?")
-                gene_params.append(mapping.get(mutation_type, mutation_type))
-            
-            if result_status:
-                if result_status == 'abnormal':
-                    gene_conditions.append("g.pathogenicity IN ('致病性', '可能致病性', '异常')")
-                else:
-                    gene_conditions.append("g.pathogenicity NOT IN ('致病性', '可能致病性', '异常') OR g.pathogenicity IS NULL")
-            
-            gene_subquery = ""
-            if gene_conditions:
-                gene_subquery = " AND " + " AND ".join(gene_conditions)
+                gene_filter_sql += " AND g.pathogenicity = ?"
+                gene_filter_params.append(mapping.get(mutation_type, mutation_type))
             
             cursor = db.execute_query(f"""
                 SELECT 
                     DATE(s.created_at) as date,
                     COUNT(s.id) as total,
-                    SUM(CASE WHEN EXISTS (
-                        SELECT 1 FROM gene_data g 
-                        WHERE g.sample_id = s.id{gene_subquery}
-                        AND g.pathogenicity IN ('致病性', '可能致病性', '异常')
-                    ) THEN 1 ELSE 0 END) as abnormal,
-                    SUM(CASE WHEN NOT EXISTS (
-                        SELECT 1 FROM gene_data g 
-                        WHERE g.sample_id = s.id{gene_subquery}
-                        AND g.pathogenicity IN ('致病性', '可能致病性', '异常')
-                    ) THEN 1 ELSE 0 END) as normal
+                    SUM(CASE WHEN 
+                        s.clinical_diagnosis LIKE '%异常%' OR EXISTS (
+                            SELECT 1 FROM gene_data g 
+                            WHERE g.sample_id = s.id{gene_filter_sql}
+                            AND g.pathogenicity IN ('致病性', '可能致病性', '疑似致病', '异常')
+                        ) THEN 1 ELSE 0 END) as abnormal,
+                    SUM(CASE WHEN 
+                        s.clinical_diagnosis NOT LIKE '%异常%' AND NOT EXISTS (
+                            SELECT 1 FROM gene_data g 
+                            WHERE g.sample_id = s.id{gene_filter_sql}
+                            AND g.pathogenicity IN ('致病性', '可能致病性', '疑似致病', '异常')
+                        ) THEN 1 ELSE 0 END) as normal
                 FROM samples s
                 {where_clause}
                 GROUP BY DATE(s.created_at)
                 ORDER BY date DESC
-            """, tuple(params + gene_params))
+            """, tuple(params + gene_filter_params))
             
             results = cursor.fetchall()
+            
+            if result_status:
+                filtered_results = []
+                for r in results:
+                    if result_status == 'abnormal':
+                        if r['abnormal'] > 0:
+                            filtered_results.append(r)
+                    else:
+                        if r['abnormal'] == 0:
+                            filtered_results.append(r)
+                results = filtered_results
             
             self.populate_data_table(results)
             

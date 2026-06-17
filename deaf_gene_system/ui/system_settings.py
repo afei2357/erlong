@@ -668,7 +668,9 @@ class UserDialog(QDialog):
         for role_key, role_name in USER_ROLES.items():
             self.role_combo.addItem(role_name, role_key)
         if self.user:
-            self.role_combo.setCurrentData(self.user['role'])
+            index = self.role_combo.findData(self.user['role'])
+            if index >= 0:
+                self.role_combo.setCurrentIndex(index)
         form_layout.addRow("角色*:", self.role_combo)
         
         layout.addLayout(form_layout)

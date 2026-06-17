@@ -392,7 +392,7 @@ class ReportPreview(QWidget):
             """
         
         # 确定检测结论
-        has_mutation = any(gd.get('pathogenicity') in ['致病性', '可能致病性', '异常'] for gd in gene_data_list)
+        has_mutation = any(gd.get('pathogenicity') in ['致病性', '可能致病性', '疑似致病', '异常'] for gd in gene_data_list)
         conclusion = "检测到致病变异" if has_mutation else "未检测到明确致病变异"
         
         # 获取样本信息
@@ -614,7 +614,7 @@ class ReportPreview(QWidget):
                     """
                 
                 # 确定检测结论
-                has_mutation = any(gd.get('pathogenicity') in ['致病性', '可能致病性', '异常'] for gd in gene_data_list)
+                has_mutation = any(gd.get('pathogenicity') in ['致病性', '可能致病性', '疑似致病', '异常'] for gd in gene_data_list)
                 conclusion = "检测到致病变异" if has_mutation else "未检测到明确致病变异"
                 
                 # 获取样本信息

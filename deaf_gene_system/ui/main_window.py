@@ -402,10 +402,14 @@ class MainWindow(QMainWindow):
             'sample_management': self.sample_management,
             'gene_analysis': self.gene_analysis,
             'report_generation': self.report_preview,
+            'report_preview': self.report_preview,
             'report_review': self.report_review,
-            'statistics': self.statistics,
-            'system_settings': self.system_settings
+            'statistics': self.statistics
         }
+        
+        # 只有在有权限时才添加系统设置模块
+        if hasattr(self, 'system_settings'):
+            module_map['system_settings'] = self.system_settings
         
         if module_id in module_map:
             self.stack.setCurrentWidget(module_map[module_id])

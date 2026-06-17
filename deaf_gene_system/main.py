@@ -172,6 +172,35 @@ class DeafGeneSystemApp:
                 color: #999999;
                 border: 1px solid #dddddd;
             }
+            
+            QMessageBox {
+                background-color: white;
+                color: #333;
+            }
+            
+            QMessageBox QLabel {
+                color: #333;
+            }
+            
+            QMessageBox QPushButton {
+                background-color: #ffffff;
+                color: #333333;
+                border: 1px solid #cccccc;
+                padding: 8px 16px;
+                border-radius: 4px;
+                min-width: 80px;
+            }
+            
+            QMessageBox QPushButton:hover {
+                background-color: #f0f0f0;
+                color: #333333;
+                border: 1px solid #0078d4;
+            }
+            
+            QMessageBox QPushButton:pressed {
+                background-color: #e0e0e0;
+                color: #333333;
+            }
         """
         self.app.setStyleSheet(style)
         
