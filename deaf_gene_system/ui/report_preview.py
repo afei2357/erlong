@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-报告生成与预览界面
-"""
-
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, 
@@ -22,11 +18,9 @@ from config import REPORT_TEMPLATES
 
 
 class ReportGenerationThread(QThread):
-    """报告生成线程"""
-    
-    progress_updated = pyqtSignal(str)      # 进度消息
-    generation_completed = pyqtSignal(dict) # 生成完成
-    generation_failed = pyqtSignal(str)     # 生成失败
+    progress_updated = pyqtSignal(str)
+    generation_completed = pyqtSignal(dict)
+    generation_failed = pyqtSignal(str)
     
     def __init__(self, sample_ids, template_type):
         super().__init__()
@@ -34,16 +28,13 @@ class ReportGenerationThread(QThread):
         self.template_type = template_type
         
     def run(self):
-        """执行报告生成"""
         try:
-            # 这里集成现有的报告生成功能
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent.parent))
             from run_deaf_gene_report import generate_deaf_gene_reports
             
-            # 生成报告
             result = generate_deaf_gene_reports(
-                sample_excel_path="",  # 需要从数据库获取样本数据生成临时Excel
+                sample_excel_path="",
                 output_dir="temp_reports",
                 log_callback=lambda msg: self.progress_updated.emit(msg)
             )
@@ -58,8 +49,6 @@ class ReportGenerationThread(QThread):
 
 
 class ReportPreview(QWidget):
-    """报告生成与预览界面"""
-    
     def __init__(self):
         super().__init__()
         self.current_sample_id = None
@@ -68,30 +57,19 @@ class ReportPreview(QWidget):
         self.load_samples()
         
     def init_ui(self):
-        """初始化UI"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        # 标题
         title_label = QLabel("报告生成与预览")
-        title_label.setStyleSheet("""
-            QLabel {
-                color: #333;
-                font-size: 18px;
-                font-weight: bold;
-            }
-        """)
+        title_label.setStyleSheet("QLabel { color: #333; font-size: 18px; font-weight: bold; }")
         layout.addWidget(title_label)
         
-        # 主分割器
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
         
-        # 左侧：样本选择和模板选择
         left_widget = self.create_left_panel()
         main_splitter.addWidget(left_widget)
         
-        # 右侧：报告预览
         right_widget = self.create_right_panel()
         main_splitter.addWidget(right_widget)
         
@@ -100,43 +78,26 @@ class ReportPreview(QWidget):
         
         layout.addWidget(main_splitter)
         
-        # 底部操作栏
         action_bar = self.create_action_bar()
         layout.addWidget(action_bar)
         
     def create_left_panel(self):
-        """创建左侧面板"""
         widget = QFrame()
         widget.setStyleSheet("background-color: white; border-radius: 8px;")
         
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(15, 15, 15, 15)
         
-        # 样本选择
         sample_group = QGroupBox("样本选择")
         sample_layout = QVBoxLayout()
         
         self.sample_list = QListWidget()
         self.sample_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         self.sample_list.setStyleSheet("""
-            QListWidget {
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 4px;
-                color: #333;
-            }
-            QListWidget::item {
-                padding: 8px;
-                border-radius: 4px;
-                color: #333;
-            }
-            QListWidget::item:selected {
-                background-color: #0078d4;
-                color: white;
-            }
-            QListWidget::item:hover {
-                background-color: #e3f2fd;
-            }
+            QListWidget { border: 1px solid #ddd; border-radius: 4px; padding: 4px; color: #333; }
+            QListWidget::item { padding: 8px; border-radius: 4px; color: #333; }
+            QListWidget::item:selected { background-color: #0078d4; color: white; }
+            QListWidget::item:hover { background-color: #e3f2fd; }
         """)
         self.sample_list.itemClicked.connect(self.on_sample_selected)
         self.sample_list.itemSelectionChanged.connect(self.on_sample_selection_changed)
@@ -145,7 +106,6 @@ class ReportPreview(QWidget):
         sample_group.setLayout(sample_layout)
         layout.addWidget(sample_group)
         
-        # 模板选择
         template_group = QGroupBox("报告模板")
         template_layout = QVBoxLayout()
         
@@ -158,7 +118,6 @@ class ReportPreview(QWidget):
         template_group.setLayout(template_layout)
         layout.addWidget(template_group)
         
-        # 报告信息编辑
         info_group = QGroupBox("报告信息")
         info_layout = QFormLayout()
         
@@ -183,48 +142,24 @@ class ReportPreview(QWidget):
         return widget
         
     def create_right_panel(self):
-        """创建右侧面板"""
         widget = QFrame()
         widget.setStyleSheet("background-color: white; border-radius: 8px;")
         
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(15, 15, 15, 15)
         
-        # 预览标题
         preview_title = QLabel("报告预览")
-        preview_title.setStyleSheet("""
-            QLabel {
-                color: #333;
-                font-size: 14px;
-                font-weight: bold;
-            }
-        """)
+        preview_title.setStyleSheet("QLabel { color: #333; font-size: 14px; font-weight: bold; }")
         layout.addWidget(preview_title)
         
-        # 预览区域
         self.preview_area = QScrollArea()
         self.preview_area.setWidgetResizable(True)
-        self.preview_area.setStyleSheet("""
-            QScrollArea {
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                background-color: #f8f9fa;
-            }
-        """)
+        self.preview_area.setStyleSheet("QScrollArea { border: 1px solid #ddd; border-radius: 4px; background-color: #f8f9fa; }")
         
-        # 预览内容
         self.preview_content = QTextEdit()
         self.preview_content.setReadOnly(True)
         self.preview_content.setMinimumHeight(500)
-        self.preview_content.setStyleSheet("""
-            QTextEdit {
-                background-color: white;
-                border: none;
-                padding: 20px;
-                font-size: 12px;
-                line-height: 1.6;
-            }
-        """)
+        self.preview_content.setStyleSheet("QTextEdit { background-color: white; border: none; padding: 20px; font-size: 12px; line-height: 1.6; }")
         
         self.preview_area.setWidget(self.preview_content)
         layout.addWidget(self.preview_area)
@@ -232,26 +167,22 @@ class ReportPreview(QWidget):
         return widget
         
     def create_action_bar(self):
-        """创建操作栏"""
         action_frame = QFrame()
         action_frame.setStyleSheet("background-color: white; border-radius: 8px; padding: 10px;")
         
         layout = QHBoxLayout(action_frame)
         layout.setContentsMargins(15, 5, 15, 5)
         
-        # 生成报告按钮
         self.generate_btn = QPushButton("📄 生成报告")
         self.generate_btn.setEnabled(False)
         self.generate_btn.clicked.connect(self.generate_report)
         layout.addWidget(self.generate_btn)
         
-        # 批量生成按钮
         self.batch_generate_btn = QPushButton("📋 批量生成")
         self.batch_generate_btn.setEnabled(False)
         self.batch_generate_btn.clicked.connect(self.batch_generate_reports)
         layout.addWidget(self.batch_generate_btn)
         
-        # 编辑按钮
         self.edit_btn = QPushButton("✏️ 编辑内容")
         self.edit_btn.setEnabled(False)
         self.edit_btn.clicked.connect(self.edit_report)

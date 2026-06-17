@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-数据库操作模块
-"""
-
 import sqlite3
 import json
 from pathlib import Path
@@ -15,9 +11,19 @@ import hashlib
 from config import DATABASE_CONFIG, DEFAULT_USERS
 
 
+class DatabaseError(Exception):
+    pass
+
+
+class DuplicateRecordError(DatabaseError):
+    pass
+
+
+class RecordNotFoundError(DatabaseError):
+    pass
+
+
 class DatabaseManager:
-    """数据库管理器"""
-    
     def __init__(self, db_path: Path = None):
         self.db_path = db_path or DATABASE_CONFIG["path"]
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -26,17 +32,17 @@ class DatabaseManager:
         self.init_database()
         
     def connect(self):
-        """连接数据库"""
-        self.connection = sqlite3.connect(str(self.db_path))
-        self.connection.row_factory = sqlite3.Row
+        try:
+            self.connection = sqlite3.connect(str(self.db_path))
+            self.connection.row_factory = sqlite3.Row
+        except sqlite3.Error as e:
+            raise DatabaseError(f"数据库连接失败: {str(e)}")
         
     def close(self):
-        """关闭数据库连接"""
         if self.connection:
             self.connection.close()
             
     def execute_query(self, query: str, params: tuple = None) -> sqlite3.Cursor:
-        """执行SQL查询"""
         cursor = self.connection.cursor()
         if params:
             cursor.execute(query, params)
@@ -45,27 +51,31 @@ class DatabaseManager:
         return cursor
         
     def fetch_one(self, query: str, params: tuple = None) -> Optional[Dict]:
-        """执行查询并返回单行结果（转换为dict）"""
         cursor = self.execute_query(query, params)
         row = cursor.fetchone()
         return dict(row) if row else None
         
     def fetch_all(self, query: str, params: tuple = None) -> List[Dict]:
-        """执行查询并返回所有结果（转换为dict列表）"""
         cursor = self.execute_query(query, params)
         return [dict(row) for row in cursor.fetchall()]
         
     def commit(self):
-        """提交事务"""
         self.connection.commit()
         
     def rollback(self):
-        """回滚事务"""
         self.connection.rollback()
         
     def init_database(self):
-        """初始化数据库表"""
-        # 用户表
+        self._create_users_table()
+        self._create_samples_table()
+        self._create_gene_data_table()
+        self._create_reports_table()
+        self._create_audit_logs_table()
+        
+        self.commit()
+        self.init_default_users()
+    
+    def _create_users_table(self):
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,8 +87,8 @@ class DatabaseManager:
                 last_login TIMESTAMP
             )
         """)
-        
-        # 样本表
+    
+    def _create_samples_table(self):
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS samples (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,8 +108,8 @@ class DatabaseManager:
                 FOREIGN KEY (created_by) REFERENCES users(id)
             )
         """)
-        
-        # 基因数据表
+    
+    def _create_gene_data_table(self):
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS gene_data (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,8 +123,8 @@ class DatabaseManager:
                 FOREIGN KEY (sample_id) REFERENCES samples(id)
             )
         """)
-        
-        # 报告表
+    
+    def _create_reports_table(self):
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS reports (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -131,8 +141,8 @@ class DatabaseManager:
                 FOREIGN KEY (reviewer_id) REFERENCES users(id)
             )
         """)
-        
-        # 审计日志表
+    
+    def _create_audit_logs_table(self):
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS audit_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -147,13 +157,7 @@ class DatabaseManager:
             )
         """)
         
-        self.commit()
-        
-        # 初始化默认用户
-        self.init_default_users()
-        
     def init_default_users(self):
-        """初始化默认用户"""
         for user in DEFAULT_USERS:
             if not self.get_user_by_username(user["username"]):
                 self.create_user(
@@ -164,21 +168,21 @@ class DatabaseManager:
                 )
     
     def hash_password(self, password: str) -> str:
-        """密码哈希"""
         return hashlib.sha256(password.encode()).hexdigest()
     
     def create_user(self, username: str, password: str, role: str, real_name: str = None) -> int:
-        """创建用户"""
-        hashed_password = self.hash_password(password)
-        cursor = self.execute_query(
-            "INSERT INTO users (username, password, role, real_name) VALUES (?, ?, ?, ?)",
-            (username, hashed_password, role, real_name)
-        )
-        self.commit()
-        return cursor.lastrowid
+        try:
+            hashed_password = self.hash_password(password)
+            cursor = self.execute_query(
+                "INSERT INTO users (username, password, role, real_name) VALUES (?, ?, ?, ?)",
+                (username, hashed_password, role, real_name)
+            )
+            self.commit()
+            return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            raise DuplicateRecordError(f"用户名 '{username}' 已存在")
     
     def get_user_by_username(self, username: str) -> Optional[Dict]:
-        """根据用户名获取用户"""
         cursor = self.execute_query(
             "SELECT * FROM users WHERE username = ?",
             (username,)
@@ -187,10 +191,8 @@ class DatabaseManager:
         return dict(row) if row else None
     
     def verify_user(self, username: str, password: str) -> Optional[Dict]:
-        """验证用户登录"""
         user = self.get_user_by_username(username)
         if user and user["password"] == self.hash_password(password):
-            # 更新最后登录时间
             self.execute_query(
                 "UPDATE users SET last_login = ? WHERE id = ?",
                 (datetime.now().isoformat(), user["id"])
@@ -200,7 +202,6 @@ class DatabaseManager:
         return None
     
     def create_sample(self, sample_data: Dict) -> int:
-        """创建样本记录"""
         cursor = self.execute_query("""
             INSERT INTO samples (
                 sample_no, patient_name, gender, age, clinical_diagnosis,
@@ -222,7 +223,6 @@ class DatabaseManager:
         return cursor.lastrowid
     
     def get_samples(self, filters: Dict = None) -> List[Dict]:
-        """获取样本列表"""
         query = "SELECT * FROM samples"
         params = []
         
@@ -249,7 +249,6 @@ class DatabaseManager:
         return [dict(row) for row in cursor.fetchall()]
     
     def create_gene_data(self, gene_data: Dict) -> int:
-        """创建基因数据记录"""
         cursor = self.execute_query("""
             INSERT INTO gene_data (
                 sample_id, gene_name, mutation_site, genotype, pathogenicity, reference
@@ -266,7 +265,6 @@ class DatabaseManager:
         return cursor.lastrowid
     
     def create_report(self, report_data: Dict) -> int:
-        """创建报告记录"""
         cursor = self.execute_query("""
             INSERT INTO reports (
                 sample_id, report_no, template_type, content, status
@@ -282,7 +280,6 @@ class DatabaseManager:
         return cursor.lastrowid
     
     def update_report_status(self, report_id: int, status: str, reviewer_id: int = None, comment: str = None):
-        """更新报告状态"""
         query = """
             UPDATE reports 
             SET status = ?, reviewed_at = ?
@@ -303,29 +300,24 @@ class DatabaseManager:
         self.commit()
     
     def get_dashboard_stats(self) -> Dict:
-        """获取仪表板统计数据"""
         stats = {}
         
-        # 今日样本数
         cursor = self.execute_query("""
             SELECT COUNT(*) as count FROM samples 
             WHERE DATE(created_at) = DATE('now')
         """)
         stats["today_samples"] = cursor.fetchone()["count"]
         
-        # 待审核报告数
         cursor = self.execute_query("""
             SELECT COUNT(*) as count FROM reports WHERE status = 'pending'
         """)
         stats["pending_reviews"] = cursor.fetchone()["count"]
         
-        # 已完成报告数
         cursor = self.execute_query("""
             SELECT COUNT(*) as count FROM reports WHERE status = 'approved'
         """)
         stats["completed_reports"] = cursor.fetchone()["count"]
         
-        # 异常位点预警数
         cursor = self.execute_query("""
             SELECT COUNT(*) as count FROM gene_data WHERE pathogenicity = 'pathogenic'
         """)
@@ -335,7 +327,6 @@ class DatabaseManager:
     
     def log_audit(self, user_id: int, action: str, table_name: str, record_id: int, 
                   old_values: str = None, new_values: str = None):
-        """记录审计日志"""
         self.execute_query("""
             INSERT INTO audit_logs (user_id, action, table_name, record_id, old_values, new_values)
             VALUES (?, ?, ?, ?, ?, ?)

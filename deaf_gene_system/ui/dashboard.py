@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-主控台/首页界面
-"""
-
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, 
     QLabel, QFrame, QPushButton, QScrollArea
@@ -17,8 +13,6 @@ from config import SAMPLE_STATUS, REPORT_STATUS
 
 
 class Dashboard(QWidget):
-    """主控台界面"""
-    
     def __init__(self):
         super().__init__()
         palette = self.palette()
@@ -27,36 +21,21 @@ class Dashboard(QWidget):
         self.setAutoFillBackground(True)
         self.init_ui()
         self.setup_timer()
-        self.refresh_data()  # 初始化时立即刷新数据
+        self.refresh_data()
         
     def init_ui(self):
-        """初始化UI"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
         
-        welcome_widget = self.create_welcome_widget()
-        layout.addWidget(welcome_widget)
-        print(f"欢迎信息添加完成")
-        
-        stats_widget = self.create_stats_widget()
-        layout.addWidget(stats_widget)
-        print(f"数据看板添加完成")
-        
-        shortcuts_widget = self.create_shortcuts_widget()
-        layout.addWidget(shortcuts_widget)
-        print(f"快捷入口添加完成")
-        
-        recent_widget = self.create_recent_activity_widget()
-        layout.addWidget(recent_widget)
-        print(f"最近活动添加完成")
-        
+        layout.addWidget(self.create_welcome_widget())
+        layout.addWidget(self.create_stats_widget())
+        layout.addWidget(self.create_shortcuts_widget())
+        layout.addWidget(self.create_recent_activity_widget())
         layout.addStretch()
         
     def create_welcome_widget(self):
-        """创建欢迎信息"""
         widget = QFrame()
-        
         palette = widget.palette()
         palette.setColor(QPalette.ColorRole.Window, QColor("#ffffff"))
         widget.setPalette(palette)
@@ -67,7 +46,6 @@ class Dashboard(QWidget):
         
         title_label = QLabel("欢迎使用耳聋基因检测系统")
         title_label.setFont(QFont("Microsoft YaHei", 20, QFont.Weight.Bold))
-        
         palette = title_label.palette()
         palette.setColor(QPalette.ColorRole.WindowText, QColor("#333333"))
         title_label.setPalette(palette)
@@ -75,7 +53,6 @@ class Dashboard(QWidget):
         
         subtitle_label = QLabel("专业的基因检测与分析平台，为临床诊断提供精准支持")
         subtitle_label.setFont(QFont("Microsoft YaHei", 14))
-        
         palette = subtitle_label.palette()
         palette.setColor(QPalette.ColorRole.WindowText, QColor("#666666"))
         subtitle_label.setPalette(palette)
@@ -84,9 +61,7 @@ class Dashboard(QWidget):
         return widget
         
     def create_stats_widget(self):
-        """创建数据看板"""
         widget = QFrame()
-        
         palette = widget.palette()
         palette.setColor(QPalette.ColorRole.Window, QColor("#ffffff"))
         widget.setPalette(palette)
@@ -108,27 +83,19 @@ class Dashboard(QWidget):
         
         self.stats_cards = {}
         
-        today_sample_card = self.create_stat_card(
-            "今日样本数", "0", "#0078d4", "📋"
-        )
+        today_sample_card = self.create_stat_card("今日样本数", "0", "#0078d4", "📋")
         stats_layout.addWidget(today_sample_card, 0, 0)
         self.stats_cards['today_samples'] = today_sample_card
         
-        pending_review_card = self.create_stat_card(
-            "待审核报告", "0", "#ff9800", "⏳"
-        )
+        pending_review_card = self.create_stat_card("待审核报告", "0", "#ff9800", "⏳")
         stats_layout.addWidget(pending_review_card, 0, 1)
         self.stats_cards['pending_reviews'] = pending_review_card
         
-        completed_report_card = self.create_stat_card(
-            "已完成报告", "0", "#4caf50", "✅"
-        )
+        completed_report_card = self.create_stat_card("已完成报告", "0", "#4caf50", "✅")
         stats_layout.addWidget(completed_report_card, 0, 2)
         self.stats_cards['completed_reports'] = completed_report_card
         
-        abnormal_mutation_card = self.create_stat_card(
-            "异常位点预警", "0", "#f44336", "⚠️"
-        )
+        abnormal_mutation_card = self.create_stat_card("异常位点预警", "0", "#f44336", "⚠️")
         stats_layout.addWidget(abnormal_mutation_card, 0, 3)
         self.stats_cards['abnormal_mutations'] = abnormal_mutation_card
         
@@ -136,18 +103,22 @@ class Dashboard(QWidget):
         return widget
         
     def create_stat_card(self, title, value, color, icon):
-        """创建统计卡片"""
         card = QFrame()
-        card.setStyleSheet(f"""
-            QFrame {{
-                background-color: {color};
-                border-radius: 8px;
-            }}
-        """)
+        card.setStyleSheet(f"QFrame {{ background-color: {color}; border-radius: 8px; }}")
         
         layout = QVBoxLayout(card)
         layout.setContentsMargins(15, 15, 15, 15)
         
+        header_layout = self._create_card_header(icon, title)
+        layout.addLayout(header_layout)
+        
+        value_label = self._create_card_value(value)
+        layout.addWidget(value_label)
+        
+        card.value_label = value_label
+        return card
+    
+    def _create_card_header(self, icon, title):
         header_layout = QHBoxLayout()
         
         icon_label = QLabel(icon)
@@ -162,22 +133,17 @@ class Dashboard(QWidget):
         title_label.setStyleSheet("color: #ffffff; background-color: transparent;")
         header_layout.addWidget(title_label)
         
-        layout.addLayout(header_layout)
-        
+        return header_layout
+    
+    def _create_card_value(self, value):
         value_label = QLabel(value)
         value_label.setFont(QFont("Microsoft YaHei", 32, QFont.Weight.Bold))
         value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         value_label.setStyleSheet("color: #ffffff; background-color: transparent;")
-        layout.addWidget(value_label)
-        
-        card.value_label = value_label
-        
-        return card
+        return value_label
         
     def create_shortcuts_widget(self):
-        """创建快捷入口"""
         widget = QFrame()
-        
         palette = widget.palette()
         palette.setColor(QPalette.ColorRole.Window, QColor("#ffffff"))
         widget.setPalette(palette)
@@ -188,7 +154,6 @@ class Dashboard(QWidget):
         
         title_label = QLabel("快捷入口")
         title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Weight.Bold))
-        
         palette = title_label.palette()
         palette.setColor(QPalette.ColorRole.WindowText, QColor("#333333"))
         title_label.setPalette(palette)
@@ -211,13 +176,11 @@ class Dashboard(QWidget):
             row = i // 3
             col = i % 3
             shortcuts_layout.addWidget(shortcut_btn, row, col)
-            print(f"添加快捷按钮: {name}, 图标: {icon}")
         
         layout.addLayout(shortcuts_layout)
         return widget
         
     def create_shortcut_button(self, name, icon, module_id):
-        """创建快捷按钮"""
         container = QWidget()
         container.setFixedHeight(130)
         container.setMinimumWidth(180)
@@ -236,7 +199,6 @@ class Dashboard(QWidget):
         icon_label = QLabel(icon)
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_label.setFont(QFont("Segoe UI Emoji", 40))
-        
         palette = icon_label.palette()
         palette.setColor(QPalette.ColorRole.WindowText, QColor("#333333"))
         icon_label.setPalette(palette)
@@ -245,7 +207,6 @@ class Dashboard(QWidget):
         name_label = QLabel(name)
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         name_label.setFont(QFont("Microsoft YaHei", 15, QFont.Weight.Bold))
-        
         palette = name_label.palette()
         palette.setColor(QPalette.ColorRole.WindowText, QColor("#333333"))
         name_label.setPalette(palette)
@@ -259,8 +220,6 @@ class Dashboard(QWidget):
         return container
         
     def switch_module(self, module_id):
-        """切换模块"""
-        # 向上遍历找到 MainWindow
         parent = self.parent()
         while parent:
             if hasattr(parent, 'switch_module'):
@@ -269,9 +228,7 @@ class Dashboard(QWidget):
             parent = parent.parent()
         
     def create_recent_activity_widget(self):
-        """创建最近活动"""
         widget = QFrame()
-        
         palette = widget.palette()
         palette.setColor(QPalette.ColorRole.Window, QColor("#ffffff"))
         widget.setPalette(palette)
@@ -282,7 +239,6 @@ class Dashboard(QWidget):
         
         title_label = QLabel("最近活动")
         title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Weight.Bold))
-        
         palette = title_label.palette()
         palette.setColor(QPalette.ColorRole.WindowText, QColor("#333333"))
         title_label.setPalette(palette)
@@ -303,14 +259,11 @@ class Dashboard(QWidget):
         return widget
         
     def setup_timer(self):
-        """设置定时器"""
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self.refresh_data)
         self.refresh_timer.start(30000)  # 每30秒刷新一次
         
     def refresh_data(self):
-        """刷新数据"""
-        # 更新统计数据
         stats = db.get_dashboard_stats()
         
         if 'today_samples' in self.stats_cards:
@@ -325,18 +278,14 @@ class Dashboard(QWidget):
         if 'abnormal_mutations' in self.stats_cards:
             self.stats_cards['abnormal_mutations'].value_label.setText(str(stats['abnormal_mutations']))
         
-        # 更新最近活动
         self.update_recent_activity()
         
     def update_recent_activity(self):
-        """更新最近活动"""
-        # 清空现有活动
         while self.activity_layout.count() > 1:
             item = self.activity_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
         
-        # 获取最近的审计日志
         cursor = db.execute_query("""
             SELECT al.*, u.real_name, u.username
             FROM audit_logs al
@@ -350,7 +299,6 @@ class Dashboard(QWidget):
         if not activities:
             no_activity_label = QLabel("暂无最近活动")
             no_activity_label.setFont(QFont("Microsoft YaHei", 11, QFont.StyleItalic))
-            
             palette = no_activity_label.palette()
             palette.setColor(QPalette.ColorRole.WindowText, QColor("#999999"))
             no_activity_label.setPalette(palette)
@@ -363,9 +311,7 @@ class Dashboard(QWidget):
             self.activity_layout.insertWidget(0, activity_item)
     
     def create_activity_item(self, activity):
-        """创建活动项"""
         item = QFrame()
-        
         palette = item.palette()
         palette.setColor(QPalette.ColorRole.Window, QColor("#f8f9fa"))
         item.setPalette(palette)
@@ -376,7 +322,6 @@ class Dashboard(QWidget):
         user_info = f"{activity['real_name'] or activity['username']}"
         user_label = QLabel(user_info)
         user_label.setFont(QFont("Microsoft YaHei", 10, QFont.Weight.Bold))
-        
         palette = user_label.palette()
         palette.setColor(QPalette.ColorRole.WindowText, QColor("#333333"))
         user_label.setPalette(palette)
@@ -385,7 +330,6 @@ class Dashboard(QWidget):
         action_desc = self.get_action_description(activity)
         action_label = QLabel(action_desc)
         action_label.setFont(QFont("Microsoft YaHei", 10))
-        
         palette = action_label.palette()
         palette.setColor(QPalette.ColorRole.WindowText, QColor("#666666"))
         action_label.setPalette(palette)

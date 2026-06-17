@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-统计查询界面
-"""
-
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, 
     QLabel, QPushButton, QComboBox, QDateEdit, 
@@ -18,79 +14,50 @@ from core.database import db
 
 
 class Statistics(QWidget):
-    """统计查询界面"""
-    
     def __init__(self):
         super().__init__()
         self.init_ui()
         self.load_statistics()
         
     def init_ui(self):
-        """初始化UI"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        # 标题
         title_label = QLabel("统计查询")
-        title_label.setStyleSheet("""
-            QLabel {
-                color: #333;
-                font-size: 18px;
-                font-weight: bold;
-            }
-        """)
+        title_label.setStyleSheet("QLabel { color: #333; font-size: 18px; font-weight: bold; }")
         layout.addWidget(title_label)
         
-        # 筛选条件区域
         filter_area = self.create_filter_area()
         layout.addWidget(filter_area)
         
-        # 标签页
         self.tab_widget = QTabWidget()
         self.tab_widget.setStyleSheet("""
-            QTabWidget::pane {
-                border: 1px solid #ddd;
-                background-color: white;
-                border-radius: 8px;
+            QTabWidget::pane { border: 1px solid #ddd; background-color: white; border-radius: 8px; }
+            QTabBar::tab { background-color: #f0f0f0; padding: 10px 20px; margin-right: 2px;
+                border-top-left-radius: 6px; border-top-right-radius: 6px;
             }
-            QTabBar::tab {
-                background-color: #f0f0f0;
-                padding: 10px 20px;
-                margin-right: 2px;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-            }
-            QTabBar::tab:selected {
-                background-color: white;
-                border-bottom: 3px solid #0078d4;
-                font-weight: bold;
-            }
+            QTabBar::tab:selected { background-color: white; border-bottom: 3px solid #0078d4; font-weight: bold; }
         """)
         
-        # 数据表格
         self.data_tab = self.create_data_tab()
         self.tab_widget.addTab(self.data_tab, "数据表格")
         
-        # 图表展示
         self.chart_tab = self.create_chart_tab()
         self.tab_widget.addTab(self.chart_tab, "图表展示")
         
         layout.addWidget(self.tab_widget)
         
-        # 操作按钮
         action_bar = self.create_action_bar()
         layout.addWidget(action_bar)
         
     def create_filter_area(self):
-        """创建筛选条件区域"""
         filter_frame = QFrame()
         filter_frame.setStyleSheet("background-color: white; border-radius: 8px; padding: 15px;")
         
         layout = QGridLayout(filter_frame)
         layout.setSpacing(15)
         
-        # 时间范围
         time_label = QLabel("时间范围:")
         time_label.setStyleSheet("color: #333333;")
         layout.addWidget(time_label, 0, 0)
@@ -114,7 +81,6 @@ class Statistics(QWidget):
         
         layout.addLayout(date_layout, 0, 1)
         
-        # 送检单位
         hospital_label = QLabel("送检单位:")
         hospital_label.setStyleSheet("color: #333333;")
         layout.addWidget(hospital_label, 0, 2)
@@ -122,7 +88,6 @@ class Statistics(QWidget):
         self.hospital_filter.addItem("全部", None)
         layout.addWidget(self.hospital_filter, 0, 3)
         
-        # 基因类型
         gene_label = QLabel("基因类型:")
         gene_label.setStyleSheet("color: #333333;")
         layout.addWidget(gene_label, 1, 0)
@@ -134,7 +99,6 @@ class Statistics(QWidget):
         self.gene_filter.addItem("MT-RNR1", "MT-RNR1")
         layout.addWidget(self.gene_filter, 1, 1)
         
-        # 突变类型
         mutation_label = QLabel("突变类型:")
         mutation_label.setStyleSheet("color: #333333;")
         layout.addWidget(mutation_label, 1, 2)
@@ -145,7 +109,6 @@ class Statistics(QWidget):
         self.mutation_filter.addItem("良性", "benign")
         layout.addWidget(self.mutation_filter, 1, 3)
         
-        # 检测结果
         result_label = QLabel("检测结果:")
         result_label.setStyleSheet("color: #333333;")
         layout.addWidget(result_label, 2, 0)
@@ -155,12 +118,10 @@ class Statistics(QWidget):
         self.result_filter.addItem("正常", "normal")
         layout.addWidget(self.result_filter, 2, 1)
         
-        # 查询按钮
         query_btn = QPushButton("🔍 查询")
         query_btn.clicked.connect(self.query_data)
         layout.addWidget(query_btn, 2, 2)
         
-        # 重置按钮
         reset_btn = QPushButton("🔄 重置")
         reset_btn.clicked.connect(self.reset_filters)
         layout.addWidget(reset_btn, 2, 3)
@@ -168,39 +129,17 @@ class Statistics(QWidget):
         return filter_frame
         
     def create_data_tab(self):
-        """创建数据表格标签页"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         
-        # 统计表格
         self.stats_table = QTableWidget()
         self.stats_table.setStyleSheet("""
-            QTableWidget {
-                background-color: white;
-                border-radius: 8px;
-                gridline-color: #eee;
-                color: #333;
-            }
-            QTableWidget::item {
-                padding: 8px;
-                color: #333;
-            }
-            QTableWidget::item:selected {
-                background-color: #0078d4;
-                color: white;
-            }
-            QHeaderView::section {
-                background-color: #f0f0f0;
-                color: #333333;
-                padding: 8px;
-                border: none;
-                border-right: 1px solid #ddd;
-                border-bottom: 1px solid #ddd;
-                font-weight: bold;
-            }
+            QTableWidget { background-color: white; border-radius: 8px; gridline-color: #eee; color: #333; }
+            QTableWidget::item { padding: 8px; color: #333; }
+            QTableWidget::item:selected { background-color: #0078d4; color: white; }
+            QHeaderView::section { background-color: #f0f0f0; color: #333333; padding: 8px; border: none; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd; font-weight: bold; }
         """)
         
-        # 设置列
         headers = [
             "日期", "样本数量", "异常数量", "正常数量", 
             "GJB2突变", "SLC26A4突变", "MT-RNR1突变", "其他突变"
@@ -208,14 +147,9 @@ class Statistics(QWidget):
         self.stats_table.setColumnCount(len(headers))
         self.stats_table.setHorizontalHeaderLabels(headers)
         
-        # 设置列宽
         self.stats_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        
-        # 设置行高
         self.stats_table.verticalHeader().setDefaultSectionSize(40)
         self.stats_table.verticalHeader().setVisible(False)
-        
-        # 确保header可见
         self.stats_table.horizontalHeader().setVisible(True)
         
         layout.addWidget(self.stats_table)
@@ -223,68 +157,42 @@ class Statistics(QWidget):
         return widget
         
     def create_chart_tab(self):
-        """创建图表展示标签页"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(20)
         layout.setContentsMargins(10, 10, 10, 10)
         
-        # 统计卡片区域
         cards_layout = QHBoxLayout()
         cards_layout.setSpacing(15)
         
-        # 总样本数
         total_card = self.create_stat_card("总样本数", "0", "#0078d4", "📊")
         cards_layout.addWidget(total_card)
         self.total_card = total_card
         
-        # 异常样本数
         abnormal_card = self.create_stat_card("异常样本数", "0", "#f44336", "⚠️")
         cards_layout.addWidget(abnormal_card)
         self.abnormal_card = abnormal_card
         
-        # 正常样本数
         normal_card = self.create_stat_card("正常样本数", "0", "#4caf50", "✅")
         cards_layout.addWidget(normal_card)
         self.normal_card = normal_card
         
-        # 异常率
         rate_card = self.create_stat_card("异常率", "0%", "#ff9800", "📈")
         cards_layout.addWidget(rate_card)
         self.rate_card = rate_card
         
         layout.addLayout(cards_layout)
         
-        # 基因突变分布
         gene_group = QGroupBox("基因突变分布")
         gene_layout = QVBoxLayout(gene_group)
         gene_layout.setContentsMargins(15, 15, 15, 15)
         
         self.gene_distribution_table = QTableWidget()
         self.gene_distribution_table.setStyleSheet("""
-            QTableWidget {
-                background-color: white;
-                border-radius: 8px;
-                gridline-color: #eee;
-                color: #333;
-            }
-            QTableWidget::item {
-                padding: 8px;
-                color: #333;
-            }
-            QTableWidget::item:selected {
-                background-color: #0078d4;
-                color: white;
-            }
-            QHeaderView::section {
-                background-color: #f0f0f0;
-                color: #333333;
-                padding: 8px;
-                border: none;
-                border-right: 1px solid #ddd;
-                border-bottom: 1px solid #ddd;
-                font-weight: bold;
-            }
+            QTableWidget { background-color: white; border-radius: 8px; gridline-color: #eee; color: #333; }
+            QTableWidget::item { padding: 8px; color: #333; }
+            QTableWidget::item:selected { background-color: #0078d4; color: white; }
+            QHeaderView::section { background-color: #f0f0f0; color: #333333; padding: 8px; border: none; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd; font-weight: bold; }
         """)
         self.gene_distribution_table.setColumnCount(3)
         self.gene_distribution_table.setHorizontalHeaderLabels(["基因名称", "突变数量", "占比"])
@@ -297,14 +205,8 @@ class Statistics(QWidget):
         return widget
         
     def create_stat_card(self, title, value, color, icon):
-        """创建统计卡片"""
         card = QFrame()
-        card.setStyleSheet(f"""
-            QFrame {{
-                background-color: {color};
-                border-radius: 8px;
-            }}
-        """)
+        card.setStyleSheet(f"QFrame {{ background-color: {color}; border-radius: 8px; }}")
         card.setMinimumHeight(140)
         card.setMinimumWidth(120)
         
@@ -312,7 +214,6 @@ class Statistics(QWidget):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(10)
         
-        # 标题和图标
         header_layout = QHBoxLayout()
         header_layout.setSpacing(5)
         
@@ -330,32 +231,27 @@ class Statistics(QWidget):
         
         layout.addLayout(header_layout)
         
-        # 数值
         value_label = QLabel(value)
         value_label.setFont(QFont("Microsoft YaHei", 28, QFont.Weight.Bold))
         value_label.setStyleSheet("color: #ffffff; background-color: transparent;")
         value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         layout.addWidget(value_label)
         
-        # 保存数值标签引用
         card.value_label = value_label
         
         return card
         
     def create_action_bar(self):
-        """创建操作栏"""
         action_frame = QFrame()
         action_frame.setStyleSheet("background-color: white; border-radius: 8px; padding: 10px;")
         
         layout = QHBoxLayout(action_frame)
         layout.setContentsMargins(15, 5, 15, 5)
         
-        # 导出Excel按钮
         export_excel_btn = QPushButton("📊 导出Excel")
         export_excel_btn.clicked.connect(self.export_excel)
         layout.addWidget(export_excel_btn)
         
-        # 打印报表按钮
         print_btn = QPushButton("🖨️ 打印报表")
         print_btn.clicked.connect(self.print_report)
         layout.addWidget(print_btn)
@@ -365,9 +261,7 @@ class Statistics(QWidget):
         return action_frame
         
     def load_statistics(self):
-        """加载统计数据"""
         try:
-            # 加载送检单位列表
             cursor = db.execute_query("""
                 SELECT DISTINCT hospital FROM samples 
                 WHERE hospital IS NOT NULL AND hospital != ''
@@ -375,29 +269,24 @@ class Statistics(QWidget):
             """)
             hospitals = cursor.fetchall()
             
-            # 保存当前选择
             current_hospital = self.hospital_filter.currentData()
             
-            # 重新填充送检单位下拉框
             self.hospital_filter.clear()
             self.hospital_filter.addItem("全部", None)
             for hospital in hospitals:
                 self.hospital_filter.addItem(hospital['hospital'], hospital['hospital'])
             
-            # 恢复选择
             if current_hospital:
                 index = self.hospital_filter.findData(current_hospital)
                 if index >= 0:
                     self.hospital_filter.setCurrentIndex(index)
             
-            # 执行查询
             self.query_data()
             
         except Exception as e:
             QMessageBox.critical(self, "错误", f"加载统计数据失败: {str(e)}")
     
     def query_data(self):
-        """查询数据"""
         try:
             start_date = self.start_date.date().toString("yyyy-MM-dd")
             end_date = self.end_date.date().toString("yyyy-MM-dd")
