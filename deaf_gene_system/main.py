@@ -15,7 +15,7 @@ sys.path.insert(0, str(project_root))
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QIcon
 
 from config import SOFTWARE_INFO
 from ui.login_dialog import LoginDialog
@@ -45,6 +45,11 @@ class DeafGeneSystemApp:
         # 设置字体
         font = QFont("Microsoft YaHei", 9)
         self.app.setFont(font)
+        
+        # 设置应用程序图标
+        icon_path = project_root / "images" / "logo.ico"
+        if icon_path.exists():
+            self.app.setWindowIcon(QIcon(str(icon_path)))
         
     def setup_styles(self):
         """设置应用程序样式"""
@@ -147,13 +152,31 @@ class DeafGeneSystemApp:
             QMenuBar {
                 background-color: #f0f0f0;
                 border-bottom: 1px solid #ddd;
+                color: #333333;
             }
             
             QMenuBar::item {
                 padding: 4px 8px;
+                color: #333333;
             }
             
             QMenuBar::item:selected {
+                background-color: #0078d4;
+                color: white;
+            }
+            
+            QMenu {
+                background-color: #ffffff;
+                color: #333333;
+                border: 1px solid #ddd;
+            }
+            
+            QMenu::item {
+                padding: 4px 20px;
+                color: #333333;
+            }
+            
+            QMenu::item:selected {
                 background-color: #0078d4;
                 color: white;
             }

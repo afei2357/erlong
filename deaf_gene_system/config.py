@@ -21,10 +21,12 @@ RESOURCES_DIR.mkdir(exist_ok=True)
 
 # 软件信息
 SOFTWARE_INFO = {
-    "name": "耳聋基因检测系统",
+    "name": "爱湾医学耳聋基因检测系统",
     "version": "1.0.0",
-    "company": "医学检验中心",
-    "copyright": "© 2024 医学检验中心 版权所有"
+    "company": "深圳爱湾医学检验实验室",
+    "copyright": "© 2026 深圳爱湾医学检验实验室 版权所有",
+    "description": "专业的耳聋基因检测与分析系统",
+    "contact": "0755-86708123"
 }
 
 # 数据库配置

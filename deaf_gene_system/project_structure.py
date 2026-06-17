@@ -172,9 +172,9 @@ DATABASE_SCHEMA = {
 
 # 软件配置
 SOFTWARE_CONFIG = {
-    "name": "耳聋基因检测系统",
+    "name": "爱湾医学耳聋基因检测系统",
     "version": "1.0.0",
-    "company": "医学检验中心",
+    "company": "爱湾医学检验实验室",
     "description": "专业的耳聋基因检测与分析系统",
     "database": {
         "type": "sqlite",

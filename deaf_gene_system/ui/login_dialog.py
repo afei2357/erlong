@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import (
     QPushButton, QComboBox, QFrame, QMessageBox, QGridLayout
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QPixmap, QPainter, QColor, QPen
+from PyQt6.QtGui import QFont, QPixmap, QPainter, QColor, QPen, QIcon
+from pathlib import Path
 
 from config import SOFTWARE_INFO, USER_ROLES
 from core.auth import auth_manager
@@ -28,6 +29,9 @@ class LoginDialog(QDialog):
     def init_ui(self):
         """初始化UI"""
         self.setWindowTitle(f"{SOFTWARE_INFO['name']} - 登录")
+        icon_path = Path(__file__).parent.parent / "images" / "logo.ico"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
         self.setFixedSize(500, 600)
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
         

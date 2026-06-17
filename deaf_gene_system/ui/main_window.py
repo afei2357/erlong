@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import (
     QStackedWidget, QLabel, QPushButton, QFrame, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont, QAction
+from PyQt6.QtGui import QFont, QAction, QIcon
+from pathlib import Path
 
 from config import SOFTWARE_INFO, UI_MODULES
 from core.auth import auth_manager
@@ -40,6 +41,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{SOFTWARE_INFO['name']} - {self.current_user['real_name']}")
         self.setMinimumSize(1200, 800)
         self.resize(1400, 900)
+        
+        icon_path = Path(__file__).parent.parent / "images" / "logo.ico"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
         
         # 中央部件
         central_widget = QWidget()
@@ -483,6 +488,8 @@ class MainWindow(QMainWindow):
         """显示关于对话框"""
         from PyQt6.QtWidgets import QMessageBox
         
+        contact_info = f"<p>联系电话: {SOFTWARE_INFO['contact']}</p>" if 'contact' in SOFTWARE_INFO else ""
+        
         QMessageBox.about(
             self, 
             f"关于 {SOFTWARE_INFO['name']}",
@@ -490,6 +497,7 @@ class MainWindow(QMainWindow):
             <h3>{SOFTWARE_INFO['name']}</h3>
             <p>版本: {SOFTWARE_INFO['version']}</p>
             <p>{SOFTWARE_INFO['description']}</p>
+            {contact_info}
             <p>{SOFTWARE_INFO['copyright']}</p>
             """
         )
