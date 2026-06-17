@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QMessageBox, QFrame, QGroupBox, QTabWidget
 )
 from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QFont
 
 from core.database import db
 
@@ -91,31 +91,41 @@ class Statistics(QWidget):
         layout.setSpacing(15)
         
         # 时间范围
-        layout.addWidget(QLabel("时间范围:"), 0, 0)
+        time_label = QLabel("时间范围:")
+        time_label.setStyleSheet("color: #333333;")
+        layout.addWidget(time_label, 0, 0)
         
         date_layout = QHBoxLayout()
         self.start_date = QDateEdit()
         self.start_date.setCalendarPopup(True)
         self.start_date.setDate(QDate.currentDate().addMonths(-1))
+        self.start_date.setStyleSheet("color: #333333; background-color: white;")
         date_layout.addWidget(self.start_date)
         
-        date_layout.addWidget(QLabel("至"))
+        to_label = QLabel("至")
+        to_label.setStyleSheet("color: #333333;")
+        date_layout.addWidget(to_label)
         
         self.end_date = QDateEdit()
         self.end_date.setCalendarPopup(True)
         self.end_date.setDate(QDate.currentDate())
+        self.end_date.setStyleSheet("color: #333333; background-color: white;")
         date_layout.addWidget(self.end_date)
         
         layout.addLayout(date_layout, 0, 1)
         
         # 送检单位
-        layout.addWidget(QLabel("送检单位:"), 0, 2)
+        hospital_label = QLabel("送检单位:")
+        hospital_label.setStyleSheet("color: #333333;")
+        layout.addWidget(hospital_label, 0, 2)
         self.hospital_filter = QComboBox()
         self.hospital_filter.addItem("全部", None)
         layout.addWidget(self.hospital_filter, 0, 3)
         
         # 基因类型
-        layout.addWidget(QLabel("基因类型:"), 1, 0)
+        gene_label = QLabel("基因类型:")
+        gene_label.setStyleSheet("color: #333333;")
+        layout.addWidget(gene_label, 1, 0)
         self.gene_filter = QComboBox()
         self.gene_filter.addItem("全部", None)
         self.gene_filter.addItem("GJB2", "GJB2")
@@ -125,7 +135,9 @@ class Statistics(QWidget):
         layout.addWidget(self.gene_filter, 1, 1)
         
         # 突变类型
-        layout.addWidget(QLabel("突变类型:"), 1, 2)
+        mutation_label = QLabel("突变类型:")
+        mutation_label.setStyleSheet("color: #333333;")
+        layout.addWidget(mutation_label, 1, 2)
         self.mutation_filter = QComboBox()
         self.mutation_filter.addItem("全部", None)
         self.mutation_filter.addItem("致病", "pathogenic")
@@ -134,7 +146,9 @@ class Statistics(QWidget):
         layout.addWidget(self.mutation_filter, 1, 3)
         
         # 检测结果
-        layout.addWidget(QLabel("检测结果:"), 2, 0)
+        result_label = QLabel("检测结果:")
+        result_label.setStyleSheet("color: #333333;")
+        layout.addWidget(result_label, 2, 0)
         self.result_filter = QComboBox()
         self.result_filter.addItem("全部", None)
         self.result_filter.addItem("异常", "abnormal")
@@ -175,6 +189,15 @@ class Statistics(QWidget):
                 background-color: #0078d4;
                 color: white;
             }
+            QHeaderView::section {
+                background-color: #f0f0f0;
+                color: #333333;
+                padding: 8px;
+                border: none;
+                border-right: 1px solid #ddd;
+                border-bottom: 1px solid #ddd;
+                font-weight: bold;
+            }
         """)
         
         # 设置列
@@ -192,6 +215,9 @@ class Statistics(QWidget):
         self.stats_table.verticalHeader().setDefaultSectionSize(40)
         self.stats_table.verticalHeader().setVisible(False)
         
+        # 确保header可见
+        self.stats_table.horizontalHeader().setVisible(True)
+        
         layout.addWidget(self.stats_table)
         
         return widget
@@ -200,36 +226,39 @@ class Statistics(QWidget):
         """创建图表展示标签页"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
+        layout.setSpacing(20)
+        layout.setContentsMargins(10, 10, 10, 10)
         
-        # 图表区域（这里用简单的统计卡片代替）
-        charts_layout = QGridLayout()
-        charts_layout.setSpacing(15)
+        # 统计卡片区域
+        cards_layout = QHBoxLayout()
+        cards_layout.setSpacing(15)
         
         # 总样本数
         total_card = self.create_stat_card("总样本数", "0", "#0078d4", "📊")
-        charts_layout.addWidget(total_card, 0, 0)
+        cards_layout.addWidget(total_card)
         self.total_card = total_card
         
         # 异常样本数
         abnormal_card = self.create_stat_card("异常样本数", "0", "#f44336", "⚠️")
-        charts_layout.addWidget(abnormal_card, 0, 1)
+        cards_layout.addWidget(abnormal_card)
         self.abnormal_card = abnormal_card
         
         # 正常样本数
         normal_card = self.create_stat_card("正常样本数", "0", "#4caf50", "✅")
-        charts_layout.addWidget(normal_card, 0, 2)
+        cards_layout.addWidget(normal_card)
         self.normal_card = normal_card
         
         # 异常率
         rate_card = self.create_stat_card("异常率", "0%", "#ff9800", "📈")
-        charts_layout.addWidget(rate_card, 0, 3)
+        cards_layout.addWidget(rate_card)
         self.rate_card = rate_card
         
-        layout.addLayout(charts_layout)
+        layout.addLayout(cards_layout)
         
         # 基因突变分布
         gene_group = QGroupBox("基因突变分布")
-        gene_layout = QVBoxLayout()
+        gene_layout = QVBoxLayout(gene_group)
+        gene_layout.setContentsMargins(15, 15, 15, 15)
         
         self.gene_distribution_table = QTableWidget()
         self.gene_distribution_table.setStyleSheet("""
@@ -247,6 +276,15 @@ class Statistics(QWidget):
                 background-color: #0078d4;
                 color: white;
             }
+            QHeaderView::section {
+                background-color: #f0f0f0;
+                color: #333333;
+                padding: 8px;
+                border: none;
+                border-right: 1px solid #ddd;
+                border-bottom: 1px solid #ddd;
+                font-weight: bold;
+            }
         """)
         self.gene_distribution_table.setColumnCount(3)
         self.gene_distribution_table.setHorizontalHeaderLabels(["基因名称", "突变数量", "占比"])
@@ -254,7 +292,6 @@ class Statistics(QWidget):
         self.gene_distribution_table.verticalHeader().setVisible(False)
         gene_layout.addWidget(self.gene_distribution_table)
         
-        gene_group.setLayout(gene_layout)
         layout.addWidget(gene_group)
         
         return widget
@@ -266,35 +303,37 @@ class Statistics(QWidget):
             QFrame {{
                 background-color: {color};
                 border-radius: 8px;
-                padding: 20px;
             }}
         """)
+        card.setMinimumHeight(140)
+        card.setMinimumWidth(120)
         
         layout = QVBoxLayout(card)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
         
         # 标题和图标
         header_layout = QHBoxLayout()
+        header_layout.setSpacing(5)
         
         icon_label = QLabel(icon)
-        icon_label.setStyleSheet("font-size: 32px; color: rgba(255, 255, 255, 0.9);")
+        icon_label.setFont(QFont("Segoe UI Emoji", 20))
+        icon_label.setStyleSheet("color: #ffffff; background-color: transparent;")
         header_layout.addWidget(icon_label)
         
         header_layout.addStretch()
         
         title_label = QLabel(title)
-        title_label.setStyleSheet("color: rgba(255, 255, 255, 0.9); font-size: 14px;")
+        title_label.setFont(QFont("Microsoft YaHei", 11))
+        title_label.setStyleSheet("color: #ffffff; background-color: transparent;")
         header_layout.addWidget(title_label)
         
         layout.addLayout(header_layout)
         
         # 数值
         value_label = QLabel(value)
-        value_label.setStyleSheet("""
-            color: white;
-            font-size: 36px;
-            font-weight: bold;
-            margin-top: 10px;
-        """)
+        value_label.setFont(QFont("Microsoft YaHei", 28, QFont.Weight.Bold))
+        value_label.setStyleSheet("color: #ffffff; background-color: transparent;")
         value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         layout.addWidget(value_label)
         
@@ -374,14 +413,11 @@ class Statistics(QWidget):
                 conditions.append("s.hospital = ?")
                 params.append(hospital)
             
-            where_clause = " WHERE " + " AND ".join(conditions)
-            
-            gene_filter_sql = ""
-            gene_filter_params = []
-            
+            gene_conditions = []
+            gene_params = []
             if gene_name:
-                gene_filter_sql += " AND g.gene_name = ?"
-                gene_filter_params.append(gene_name)
+                gene_conditions.append("g.gene_name = ?")
+                gene_params.append(gene_name)
             
             if mutation_type:
                 mapping = {
@@ -389,30 +425,55 @@ class Statistics(QWidget):
                     'likely_pathogenic': '疑似致病',
                     'benign': '良性'
                 }
-                gene_filter_sql += " AND g.pathogenicity = ?"
-                gene_filter_params.append(mapping.get(mutation_type, mutation_type))
+                gene_conditions.append("g.pathogenicity = ?")
+                gene_params.append(mapping.get(mutation_type, mutation_type))
             
-            cursor = db.execute_query(f"""
-                SELECT 
-                    DATE(s.created_at) as date,
-                    COUNT(s.id) as total,
-                    SUM(CASE WHEN 
-                        s.clinical_diagnosis LIKE '%异常%' OR EXISTS (
-                            SELECT 1 FROM gene_data g 
-                            WHERE g.sample_id = s.id{gene_filter_sql}
-                            AND g.pathogenicity IN ('致病性', '可能致病性', '疑似致病', '异常')
-                        ) THEN 1 ELSE 0 END) as abnormal,
-                    SUM(CASE WHEN 
-                        s.clinical_diagnosis NOT LIKE '%异常%' AND NOT EXISTS (
-                            SELECT 1 FROM gene_data g 
-                            WHERE g.sample_id = s.id{gene_filter_sql}
-                            AND g.pathogenicity IN ('致病性', '可能致病性', '疑似致病', '异常')
-                        ) THEN 1 ELSE 0 END) as normal
-                FROM samples s
-                {where_clause}
-                GROUP BY DATE(s.created_at)
-                ORDER BY date DESC
-            """, tuple(params + gene_filter_params))
+            gene_where = ""
+            if gene_conditions:
+                gene_where = " AND " + " AND ".join(gene_conditions)
+            
+            where_clause = " WHERE " + " AND ".join(conditions)
+            
+            if gene_name or mutation_type:
+                cursor = db.execute_query(f"""
+                    SELECT 
+                        DATE(s.created_at) as date,
+                        COUNT(s.id) as total,
+                        SUM(CASE WHEN 
+                            s.clinical_diagnosis LIKE '%异常%' OR g.pathogenicity IN ('致病性', '可能致病性', '疑似致病', '异常')
+                        THEN 1 ELSE 0 END) as abnormal,
+                        SUM(CASE WHEN 
+                            s.clinical_diagnosis NOT LIKE '%异常%' AND g.pathogenicity NOT IN ('致病性', '可能致病性', '疑似致病', '异常')
+                        THEN 1 ELSE 0 END) as normal
+                    FROM samples s
+                    INNER JOIN gene_data g ON s.id = g.sample_id
+                    {where_clause}
+                    {gene_where}
+                    GROUP BY DATE(s.created_at)
+                    ORDER BY date DESC
+                """, tuple(params + gene_params))
+            else:
+                cursor = db.execute_query(f"""
+                    SELECT 
+                        DATE(s.created_at) as date,
+                        COUNT(s.id) as total,
+                        SUM(CASE WHEN 
+                            s.clinical_diagnosis LIKE '%异常%' OR EXISTS (
+                                SELECT 1 FROM gene_data g 
+                                WHERE g.sample_id = s.id
+                                AND g.pathogenicity IN ('致病性', '可能致病性', '疑似致病', '异常')
+                            ) THEN 1 ELSE 0 END) as abnormal,
+                        SUM(CASE WHEN 
+                            s.clinical_diagnosis NOT LIKE '%异常%' AND NOT EXISTS (
+                                SELECT 1 FROM gene_data g 
+                                WHERE g.sample_id = s.id
+                                AND g.pathogenicity IN ('致病性', '可能致病性', '疑似致病', '异常')
+                            ) THEN 1 ELSE 0 END) as normal
+                    FROM samples s
+                    {where_clause}
+                    GROUP BY DATE(s.created_at)
+                    ORDER BY date DESC
+                """, tuple(params))
             
             results = cursor.fetchall()
             

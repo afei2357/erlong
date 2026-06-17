@@ -36,6 +36,9 @@ class DeafGeneSystemApp:
         self.app.setApplicationVersion(SOFTWARE_INFO["version"])
         self.app.setOrganizationName(SOFTWARE_INFO["company"])
         
+        # 使用Fusion样式，确保跨平台一致性
+        self.app.setStyle('Fusion')
+        
         # 设置应用程序样式
         self.setup_styles()
         
@@ -54,19 +57,16 @@ class DeafGeneSystemApp:
             QWidget {
                 font-family: "Microsoft YaHei";
                 font-size: 9pt;
-                color: #333;
-            }
-            
-            QLabel {
-                color: #333;
             }
             
             QTextEdit {
                 color: #333;
+                background-color: white;
             }
             
             QListWidget {
                 color: #333;
+                background-color: white;
             }
             
             QComboBox {
@@ -75,8 +75,20 @@ class DeafGeneSystemApp:
             }
             
             QGroupBox {
-                color: #333;
+                color: #333333;
                 font-weight: bold;
+                font-size: 12px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+                color: #333333;
             }
             
             QLineEdit {

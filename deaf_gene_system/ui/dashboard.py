@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QLabel, QFrame, QPushButton, QScrollArea
 )
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QPalette, QColor
 
 from core.database import db
 from config import SAMPLE_STATUS, REPORT_STATUS
@@ -21,8 +21,13 @@ class Dashboard(QWidget):
     
     def __init__(self):
         super().__init__()
+        palette = self.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor("#f5f5f5"))
+        self.setPalette(palette)
+        self.setAutoFillBackground(True)
         self.init_ui()
         self.setup_timer()
+        self.refresh_data()  # 初始化时立即刷新数据
         
     def init_ui(self):
         """初始化UI"""
@@ -30,57 +35,50 @@ class Dashboard(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
         
-        # 欢迎信息
         welcome_widget = self.create_welcome_widget()
         layout.addWidget(welcome_widget)
+        print(f"欢迎信息添加完成")
         
-        # 数据看板
         stats_widget = self.create_stats_widget()
         layout.addWidget(stats_widget)
+        print(f"数据看板添加完成")
         
-        # 快捷入口
         shortcuts_widget = self.create_shortcuts_widget()
         layout.addWidget(shortcuts_widget)
+        print(f"快捷入口添加完成")
         
-        # 最近活动
         recent_widget = self.create_recent_activity_widget()
         layout.addWidget(recent_widget)
+        print(f"最近活动添加完成")
         
         layout.addStretch()
         
     def create_welcome_widget(self):
         """创建欢迎信息"""
         widget = QFrame()
-        widget.setStyleSheet("""
-            QFrame {
-                background-color: white;
-                border-radius: 8px;
-                padding: 20px;
-            }
-        """)
+        
+        palette = widget.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor("#ffffff"))
+        widget.setPalette(palette)
+        widget.setAutoFillBackground(True)
         
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(20, 15, 20, 15)
         
-        # 标题
         title_label = QLabel("欢迎使用耳聋基因检测系统")
-        title_label.setStyleSheet("""
-            QLabel {
-                color: #333;
-                font-size: 20px;
-                font-weight: bold;
-            }
-        """)
+        title_label.setFont(QFont("Microsoft YaHei", 20, QFont.Weight.Bold))
+        
+        palette = title_label.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#333333"))
+        title_label.setPalette(palette)
         layout.addWidget(title_label)
         
-        # 副标题
         subtitle_label = QLabel("专业的基因检测与分析平台，为临床诊断提供精准支持")
-        subtitle_label.setStyleSheet("""
-            QLabel {
-                color: #666;
-                font-size: 14px;
-            }
-        """)
+        subtitle_label.setFont(QFont("Microsoft YaHei", 14))
+        
+        palette = subtitle_label.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#666666"))
+        subtitle_label.setPalette(palette)
         layout.addWidget(subtitle_label)
         
         return widget
@@ -88,57 +86,46 @@ class Dashboard(QWidget):
     def create_stats_widget(self):
         """创建数据看板"""
         widget = QFrame()
-        widget.setStyleSheet("""
-            QFrame {
-                background-color: white;
-                border-radius: 8px;
-                padding: 20px;
-            }
-        """)
+        
+        palette = widget.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor("#ffffff"))
+        widget.setPalette(palette)
+        widget.setAutoFillBackground(True)
         
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(20, 15, 20, 15)
         
-        # 标题
         title_label = QLabel("数据概览")
-        title_label.setStyleSheet("""
-            QLabel {
-                color: #333;
-                font-size: 16px;
-                font-weight: bold;
-                margin-bottom: 15px;
-            }
-        """)
+        title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Weight.Bold))
+        
+        palette = title_label.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#333333"))
+        title_label.setPalette(palette)
         layout.addWidget(title_label)
         
-        # 统计卡片
         stats_layout = QGridLayout()
         stats_layout.setSpacing(15)
         
         self.stats_cards = {}
         
-        # 今日样本数
         today_sample_card = self.create_stat_card(
             "今日样本数", "0", "#0078d4", "📋"
         )
         stats_layout.addWidget(today_sample_card, 0, 0)
         self.stats_cards['today_samples'] = today_sample_card
         
-        # 待审核报告数
         pending_review_card = self.create_stat_card(
             "待审核报告", "0", "#ff9800", "⏳"
         )
         stats_layout.addWidget(pending_review_card, 0, 1)
         self.stats_cards['pending_reviews'] = pending_review_card
         
-        # 已完成报告数
         completed_report_card = self.create_stat_card(
             "已完成报告", "0", "#4caf50", "✅"
         )
         stats_layout.addWidget(completed_report_card, 0, 2)
         self.stats_cards['completed_reports'] = completed_report_card
         
-        # 异常位点预警数
         abnormal_mutation_card = self.create_stat_card(
             "异常位点预警", "0", "#f44336", "⚠️"
         )
@@ -155,52 +142,34 @@ class Dashboard(QWidget):
             QFrame {{
                 background-color: {color};
                 border-radius: 8px;
-                padding: 15px;
             }}
         """)
         
         layout = QVBoxLayout(card)
         layout.setContentsMargins(15, 15, 15, 15)
         
-        # 图标和标题
         header_layout = QHBoxLayout()
         
         icon_label = QLabel(icon)
-        icon_label.setStyleSheet("""
-            QLabel {
-                font-size: 24px;
-                color: rgba(255, 255, 255, 0.9);
-            }
-        """)
+        icon_label.setFont(QFont("Segoe UI Emoji", 24))
+        icon_label.setStyleSheet("color: #ffffff; background-color: transparent;")
         header_layout.addWidget(icon_label)
         
         header_layout.addStretch()
         
         title_label = QLabel(title)
-        title_label.setStyleSheet("""
-            QLabel {
-                color: rgba(255, 255, 255, 0.9);
-                font-size: 12px;
-            }
-        """)
+        title_label.setFont(QFont("Microsoft YaHei", 12))
+        title_label.setStyleSheet("color: #ffffff; background-color: transparent;")
         header_layout.addWidget(title_label)
         
         layout.addLayout(header_layout)
         
-        # 数值
         value_label = QLabel(value)
-        value_label.setStyleSheet("""
-            QLabel {
-                color: white;
-                font-size: 32px;
-                font-weight: bold;
-                margin-top: 10px;
-            }
-        """)
+        value_label.setFont(QFont("Microsoft YaHei", 32, QFont.Weight.Bold))
         value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        value_label.setStyleSheet("color: #ffffff; background-color: transparent;")
         layout.addWidget(value_label)
         
-        # 保存数值标签引用以便更新
         card.value_label = value_label
         
         return card
@@ -208,30 +177,23 @@ class Dashboard(QWidget):
     def create_shortcuts_widget(self):
         """创建快捷入口"""
         widget = QFrame()
-        widget.setStyleSheet("""
-            QFrame {
-                background-color: white;
-                border-radius: 8px;
-                padding: 20px;
-            }
-        """)
+        
+        palette = widget.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor("#ffffff"))
+        widget.setPalette(palette)
+        widget.setAutoFillBackground(True)
         
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(20, 15, 20, 15)
         
-        # 标题
         title_label = QLabel("快捷入口")
-        title_label.setStyleSheet("""
-            QLabel {
-                color: #333;
-                font-size: 16px;
-                font-weight: bold;
-                margin-bottom: 15px;
-            }
-        """)
+        title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Weight.Bold))
+        
+        palette = title_label.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#333333"))
+        title_label.setPalette(palette)
         layout.addWidget(title_label)
         
-        # 快捷按钮
         shortcuts_layout = QGridLayout()
         shortcuts_layout.setSpacing(15)
         
@@ -249,46 +211,52 @@ class Dashboard(QWidget):
             row = i // 3
             col = i % 3
             shortcuts_layout.addWidget(shortcut_btn, row, col)
+            print(f"添加快捷按钮: {name}, 图标: {icon}")
         
         layout.addLayout(shortcuts_layout)
         return widget
         
     def create_shortcut_button(self, name, icon, module_id):
         """创建快捷按钮"""
-        btn = QPushButton()
-        btn.setFixedHeight(100)
-        btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f8f9fa;
-                border: 2px solid #e9ecef;
-                border-radius: 8px;
-                color: #333;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #e3f2fd;
-                border-color: #0078d4;
-                color: #0078d4;
-            }
-        """)
+        container = QWidget()
+        container.setFixedHeight(130)
+        container.setMinimumWidth(180)
+        container.setCursor(Qt.CursorShape.PointingHandCursor)
         
-        layout = QVBoxLayout(btn)
+        palette = container.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor("#f8f9fa"))
+        container.setPalette(palette)
+        container.setAutoFillBackground(True)
+        
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         icon_label = QLabel(icon)
-        icon_label.setStyleSheet("font-size: 32px;")
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon_label.setFont(QFont("Segoe UI Emoji", 40))
+        
+        palette = icon_label.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#333333"))
+        icon_label.setPalette(palette)
         layout.addWidget(icon_label)
         
         name_label = QLabel(name)
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        name_label.setFont(QFont("Microsoft YaHei", 15, QFont.Weight.Bold))
+        
+        palette = name_label.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#333333"))
+        name_label.setPalette(palette)
         layout.addWidget(name_label)
         
-        # 点击事件
-        btn.clicked.connect(lambda checked, mid=module_id: self.switch_module(mid))
+        def mousePressEvent(event):
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.switch_module(module_id)
+        container.mousePressEvent = mousePressEvent
         
-        return btn
+        return container
         
     def switch_module(self, module_id):
         """切换模块"""
@@ -303,39 +271,26 @@ class Dashboard(QWidget):
     def create_recent_activity_widget(self):
         """创建最近活动"""
         widget = QFrame()
-        widget.setStyleSheet("""
-            QFrame {
-                background-color: white;
-                border-radius: 8px;
-                padding: 20px;
-            }
-        """)
+        
+        palette = widget.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor("#ffffff"))
+        widget.setPalette(palette)
+        widget.setAutoFillBackground(True)
         
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(20, 15, 20, 15)
         
-        # 标题
         title_label = QLabel("最近活动")
-        title_label.setStyleSheet("""
-            QLabel {
-                color: #333;
-                font-size: 16px;
-                font-weight: bold;
-                margin-bottom: 15px;
-            }
-        """)
+        title_label.setFont(QFont("Microsoft YaHei", 16, QFont.Weight.Bold))
+        
+        palette = title_label.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#333333"))
+        title_label.setPalette(palette)
         layout.addWidget(title_label)
         
-        # 活动列表
         self.activity_list = QScrollArea()
         self.activity_list.setWidgetResizable(True)
         self.activity_list.setFixedHeight(200)
-        self.activity_list.setStyleSheet("""
-            QScrollArea {
-                border: none;
-                background-color: transparent;
-            }
-        """)
         
         activity_content = QWidget()
         self.activity_layout = QVBoxLayout(activity_content)
@@ -394,7 +349,11 @@ class Dashboard(QWidget):
         
         if not activities:
             no_activity_label = QLabel("暂无最近活动")
-            no_activity_label.setStyleSheet("color: #999; font-style: italic;")
+            no_activity_label.setFont(QFont("Microsoft YaHei", 11, QFont.StyleItalic))
+            
+            palette = no_activity_label.palette()
+            palette.setColor(QPalette.ColorRole.WindowText, QColor("#999999"))
+            no_activity_label.setPalette(palette)
             no_activity_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.activity_layout.insertWidget(0, no_activity_label)
             return
@@ -406,33 +365,40 @@ class Dashboard(QWidget):
     def create_activity_item(self, activity):
         """创建活动项"""
         item = QFrame()
-        item.setStyleSheet("""
-            QFrame {
-                background-color: #f8f9fa;
-                border-radius: 4px;
-                padding: 10px;
-            }
-        """)
+        
+        palette = item.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor("#f8f9fa"))
+        item.setPalette(palette)
+        item.setAutoFillBackground(True)
         
         layout = QHBoxLayout(item)
         
-        # 用户信息
         user_info = f"{activity['real_name'] or activity['username']}"
         user_label = QLabel(user_info)
-        user_label.setStyleSheet("color: #333; font-weight: bold;")
+        user_label.setFont(QFont("Microsoft YaHei", 10, QFont.Weight.Bold))
+        
+        palette = user_label.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#333333"))
+        user_label.setPalette(palette)
         layout.addWidget(user_label)
         
-        # 操作描述
         action_desc = self.get_action_description(activity)
         action_label = QLabel(action_desc)
-        action_label.setStyleSheet("color: #666;")
+        action_label.setFont(QFont("Microsoft YaHei", 10))
+        
+        palette = action_label.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#666666"))
+        action_label.setPalette(palette)
         layout.addWidget(action_label)
         
         layout.addStretch()
         
-        # 时间
         time_label = QLabel(self.format_time(activity['created_at']))
-        time_label.setStyleSheet("color: #999; font-size: 11px;")
+        time_label.setFont(QFont("Microsoft YaHei", 11))
+        
+        palette = time_label.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#999999"))
+        time_label.setPalette(palette)
         layout.addWidget(time_label)
         
         return item
