@@ -475,6 +475,8 @@ class MainWindow(QMainWindow):
         
         if reply == QMessageBox.StandardButton.Yes:
             auth_manager.logout()
+            # 设置标志，跳过closeEvent中的确认对话框
+            self._skip_close_confirm = True
             self.close()
     
     def show_about(self):
@@ -495,6 +497,11 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         """关闭事件"""
         from PyQt6.QtWidgets import QMessageBox
+        
+        # 如果是从logout方法调用的，跳过确认
+        if hasattr(self, '_skip_close_confirm') and self._skip_close_confirm:
+            event.accept()
+            return
         
         reply = QMessageBox.question(
             self, '确认退出',
