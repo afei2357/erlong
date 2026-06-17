@@ -360,31 +360,74 @@ class Statistics(QWidget):
     def query_data(self):
         """查询数据"""
         try:
-            # 获取筛选条件
             start_date = self.start_date.date().toString("yyyy-MM-dd")
             end_date = self.end_date.date().toString("yyyy-MM-dd")
             hospital = self.hospital_filter.currentData()
+            gene_name = self.gene_filter.currentData()
+            mutation_type = self.mutation_filter.currentData()
+            result_status = self.result_filter.currentData()
             
-            # 查询统计数据
-            cursor = db.execute_query("""
+            conditions = []
+            params = [start_date, end_date]
+            
+            conditions.append("DATE(s.created_at) BETWEEN ? AND ?")
+            
+            if hospital:
+                conditions.append("s.hospital = ?")
+                params.append(hospital)
+            
+            where_clause = " WHERE " + " AND ".join(conditions)
+            
+            gene_conditions = []
+            gene_params = []
+            
+            if gene_name:
+                gene_conditions.append("g.gene_name = ?")
+                gene_params.append(gene_name)
+            
+            if mutation_type:
+                mapping = {
+                    'pathogenic': '致病性',
+                    'likely_pathogenic': '可能致病性',
+                    'benign': '良性'
+                }
+                gene_conditions.append("g.pathogenicity = ?")
+                gene_params.append(mapping.get(mutation_type, mutation_type))
+            
+            if result_status:
+                if result_status == 'abnormal':
+                    gene_conditions.append("g.pathogenicity IN ('致病性', '可能致病性', '异常')")
+                else:
+                    gene_conditions.append("g.pathogenicity NOT IN ('致病性', '可能致病性', '异常') OR g.pathogenicity IS NULL")
+            
+            gene_subquery = ""
+            if gene_conditions:
+                gene_subquery = " AND " + " AND ".join(gene_conditions)
+            
+            cursor = db.execute_query(f"""
                 SELECT 
-                    DATE(created_at) as date,
-                    COUNT(*) as total,
-                    SUM(CASE WHEN clinical_diagnosis LIKE '%异常%' THEN 1 ELSE 0 END) as abnormal,
-                    SUM(CASE WHEN clinical_diagnosis NOT LIKE '%异常%' OR clinical_diagnosis IS NULL THEN 1 ELSE 0 END) as normal
-                FROM samples
-                WHERE DATE(created_at) BETWEEN ? AND ?
-                AND (? IS NULL OR hospital = ?)
-                GROUP BY DATE(created_at)
+                    DATE(s.created_at) as date,
+                    COUNT(s.id) as total,
+                    SUM(CASE WHEN EXISTS (
+                        SELECT 1 FROM gene_data g 
+                        WHERE g.sample_id = s.id{gene_subquery}
+                        AND g.pathogenicity IN ('致病性', '可能致病性', '异常')
+                    ) THEN 1 ELSE 0 END) as abnormal,
+                    SUM(CASE WHEN NOT EXISTS (
+                        SELECT 1 FROM gene_data g 
+                        WHERE g.sample_id = s.id{gene_subquery}
+                        AND g.pathogenicity IN ('致病性', '可能致病性', '异常')
+                    ) THEN 1 ELSE 0 END) as normal
+                FROM samples s
+                {where_clause}
+                GROUP BY DATE(s.created_at)
                 ORDER BY date DESC
-            """, (start_date, end_date, hospital, hospital))
+            """, tuple(params + gene_params))
             
             results = cursor.fetchall()
             
-            # 填充数据表格
             self.populate_data_table(results)
             
-            # 更新图表
             self.update_charts(results)
             
         except Exception as e:

@@ -238,15 +238,16 @@ class SampleManagement(QWidget):
         edit_btn = QPushButton("编辑")
         edit_btn.setStyleSheet("""
             QPushButton {
-                background-color: #0078d4;
-                color: white;
-                border: none;
+                background-color: #ffffff;
+                color: #333333;
+                border: 1px solid #cccccc;
                 border-radius: 3px;
                 padding: 4px 8px;
                 font-size: 11px;
             }
             QPushButton:hover {
-                background-color: #106ebe;
+                background-color: #f0f0f0;
+                border-color: #0078d4;
             }
         """)
         edit_btn.clicked.connect(lambda: self.edit_sample(row))
@@ -256,15 +257,16 @@ class SampleManagement(QWidget):
         delete_btn = QPushButton("删除")
         delete_btn.setStyleSheet("""
             QPushButton {
-                background-color: #f44336;
-                color: white;
-                border: none;
+                background-color: #ffffff;
+                color: #333333;
+                border: 1px solid #f44336;
                 border-radius: 3px;
                 padding: 4px 8px;
                 font-size: 11px;
             }
             QPushButton:hover {
-                background-color: #d32f2f;
+                background-color: #ffebee;
+                border-color: #d32f2f;
             }
         """)
         delete_btn.clicked.connect(lambda: self.delete_sample(sample['id']))
@@ -361,13 +363,11 @@ class SampleManagement(QWidget):
         
         sample_no = self.sample_no_search.text().strip()
         if sample_no:
-            # 这里需要修改数据库查询以支持样本编号搜索
-            pass
+            filters['sample_no'] = sample_no
         
         name = self.name_search.text().strip()
         if name:
-            # 这里需要修改数据库查询以支持姓名搜索
-            pass
+            filters['patient_name'] = name
         
         status = self.status_filter.currentData()
         if status:
@@ -399,8 +399,66 @@ class SampleManagement(QWidget):
         )
         
         if file_path:
-            # 这里实现Excel导出逻辑
-            QMessageBox.information(self, "提示", "导出功能开发中...")
+            try:
+                from openpyxl import Workbook
+                from openpyxl.styles import Font, Alignment, Border, Side
+                
+                wb = Workbook()
+                ws = wb.active
+                ws.title = "样本列表"
+                
+                headers = [
+                    "样本编号", "受检者姓名", "性别", "年龄", 
+                    "临床诊断", "送检单位", "检测项目", "状态",
+                    "创建时间", "创建人"
+                ]
+                
+                thin_border = Border(
+                    left=Side(style='thin'),
+                    right=Side(style='thin'),
+                    top=Side(style='thin'),
+                    bottom=Side(style='thin')
+                )
+                
+                for col, header in enumerate(headers, 1):
+                    cell = ws.cell(row=1, column=col, value=header)
+                    cell.font = Font(bold=True)
+                    cell.alignment = Alignment(horizontal='center')
+                    cell.border = thin_border
+                
+                samples = db.get_samples()
+                
+                for row, sample in enumerate(samples, 2):
+                    ws.cell(row=row, column=1, value=sample.get('sample_no', '')).border = thin_border
+                    ws.cell(row=row, column=2, value=sample.get('patient_name', '')).border = thin_border
+                    ws.cell(row=row, column=3, value=sample.get('gender', '')).border = thin_border
+                    ws.cell(row=row, column=4, value=sample.get('age', '')).border = thin_border
+                    ws.cell(row=row, column=5, value=sample.get('clinical_diagnosis', '')).border = thin_border
+                    ws.cell(row=row, column=6, value=sample.get('hospital', '')).border = thin_border
+                    ws.cell(row=row, column=7, value=sample.get('test_project', '')).border = thin_border
+                    ws.cell(row=row, column=8, value=sample.get('status', '')).border = thin_border
+                    ws.cell(row=row, column=9, value=sample.get('created_at', '')).border = thin_border
+                    
+                    created_by = sample.get('created_by', '')
+                    if created_by:
+                        cursor = db.execute_query("SELECT real_name FROM users WHERE id = ?", (created_by,))
+                        user_row = cursor.fetchone()
+                        if user_row:
+                            created_by_name = dict(user_row).get('real_name', str(created_by))
+                        else:
+                            created_by_name = str(created_by)
+                    else:
+                        created_by_name = ''
+                    ws.cell(row=row, column=10, value=created_by_name).border = thin_border
+                
+                for col in range(1, len(headers) + 1):
+                    ws.column_dimensions[chr(64 + col)].width = 20
+                
+                wb.save(file_path)
+                QMessageBox.information(self, "成功", f"样本列表已导出到\n{file_path}")
+                
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"导出失败: {str(e)}")
     
     def refresh_data(self):
         """刷新数据"""

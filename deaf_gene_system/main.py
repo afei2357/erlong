@@ -147,25 +147,30 @@ class DeafGeneSystemApp:
             }
             
             QPushButton {
-                background-color: #0078d4;
-                color: white;
-                border: none;
+                background-color: #ffffff;
+                color: #333333;
+                border: 1px solid #cccccc;
                 padding: 8px 16px;
                 border-radius: 4px;
                 min-width: 80px;
+                font-weight: normal;
             }
             
             QPushButton:hover {
-                background-color: #106ebe;
+                background-color: #f0f0f0;
+                color: #333333;
+                border: 1px solid #0078d4;
             }
             
             QPushButton:pressed {
-                background-color: #005a9e;
+                background-color: #e0e0e0;
+                color: #333333;
             }
             
             QPushButton:disabled {
-                background-color: #cccccc;
-                color: #666666;
+                background-color: #f5f5f5;
+                color: #999999;
+                border: 1px solid #dddddd;
             }
         """
         self.app.setStyleSheet(style)

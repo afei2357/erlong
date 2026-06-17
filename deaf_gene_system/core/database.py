@@ -234,6 +234,12 @@ class DatabaseManager:
             if filters.get("hospital"):
                 conditions.append("hospital LIKE ?")
                 params.append(f"%{filters['hospital']}%")
+            if filters.get("sample_no"):
+                conditions.append("sample_no LIKE ?")
+                params.append(f"%{filters['sample_no']}%")
+            if filters.get("patient_name"):
+                conditions.append("patient_name LIKE ?")
+                params.append(f"%{filters['patient_name']}%")
             if conditions:
                 query += " WHERE " + " AND ".join(conditions)
         

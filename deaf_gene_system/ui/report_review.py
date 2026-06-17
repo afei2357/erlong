@@ -104,7 +104,16 @@ class ReportReview(QWidget):
         self.view_detail_btn.clicked.connect(self.view_report_detail)
         action_layout.addWidget(self.view_detail_btn)
         
+        # 批量审核按钮
         action_layout.addStretch()
+        
+        self.batch_approve_btn = QPushButton("✅ 批量通过")
+        self.batch_approve_btn.clicked.connect(self.batch_approve_reports)
+        action_layout.addWidget(self.batch_approve_btn)
+        
+        self.batch_reject_btn = QPushButton("❌ 批量驳回")
+        self.batch_reject_btn.clicked.connect(self.batch_reject_reports)
+        action_layout.addWidget(self.batch_reject_btn)
         
         layout.addLayout(action_layout)
         
@@ -170,7 +179,7 @@ class ReportReview(QWidget):
         
         # 设置选择模式
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         
         # 保存状态
         table.table_status = status
@@ -360,6 +369,114 @@ class ReportReview(QWidget):
                 
             except Exception as e:
                 QMessageBox.critical(self, "错误", f"驳回失败: {str(e)}")
+    
+    def batch_approve_reports(self):
+        """批量通过报告"""
+        table = self.pending_table
+        
+        selected_rows = sorted(set(index.row() for index in table.selectedIndexes()))
+        if not selected_rows:
+            QMessageBox.warning(self, "提示", "请先选择要批量审核的报告")
+            return
+        
+        reply = QMessageBox.question(
+            self, '确认批量通过',
+            f'确定要通过选中的 {len(selected_rows)} 个报告吗？',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                success_count = 0
+                fail_count = 0
+                
+                for row in selected_rows:
+                    try:
+                        report_no = table.item(row, 0).text()
+                        
+                        db.update_report_status(
+                            report_id=self.get_report_id(report_no),
+                            status="approved",
+                            reviewer_id=auth_manager.current_user['id']
+                        )
+                        
+                        db.log_audit(
+                            user_id=auth_manager.current_user['id'],
+                            action="review",
+                            table_name="reports",
+                            record_id=self.get_report_id(report_no),
+                            new_values="approved (batch)"
+                        )
+                        
+                        success_count += 1
+                    except Exception:
+                        fail_count += 1
+                
+                QMessageBox.information(self, "批量审核完成",
+                    f"批量审核完成！\n成功：{success_count} 份\n失败：{fail_count} 份")
+                self.load_reports()
+                
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"批量审核失败: {str(e)}")
+    
+    def batch_reject_reports(self):
+        """批量驳回报告"""
+        table = self.pending_table
+        
+        selected_rows = sorted(set(index.row() for index in table.selectedIndexes()))
+        if not selected_rows:
+            QMessageBox.warning(self, "提示", "请先选择要批量驳回的报告")
+            return
+        
+        reply = QMessageBox.question(
+            self, '确认批量驳回',
+            f'确定要驳回选中的 {len(selected_rows)} 个报告吗？',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        
+        # 显示驳回原因对话框
+        dialog = RejectDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        
+        reject_reason = dialog.get_reason()
+        
+        try:
+            success_count = 0
+            fail_count = 0
+            
+            for row in selected_rows:
+                try:
+                    report_no = table.item(row, 0).text()
+                    
+                    db.update_report_status(
+                        report_id=self.get_report_id(report_no),
+                        status="rejected",
+                        reviewer_id=auth_manager.current_user['id'],
+                        comment=reject_reason
+                    )
+                    
+                    db.log_audit(
+                        user_id=auth_manager.current_user['id'],
+                        action="review",
+                        table_name="reports",
+                        record_id=self.get_report_id(report_no),
+                        new_values=f"rejected (batch): {reject_reason}"
+                    )
+                    
+                    success_count += 1
+                except Exception:
+                    fail_count += 1
+            
+            QMessageBox.information(self, "批量驳回完成",
+                f"批量驳回完成！\n成功：{success_count} 份\n失败：{fail_count} 份")
+            self.load_reports()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"批量驳回失败: {str(e)}")
     
     def view_report_detail(self):
         """查看报告详情"""

@@ -117,6 +117,7 @@ class ReportPreview(QWidget):
         sample_layout = QVBoxLayout()
         
         self.sample_list = QListWidget()
+        self.sample_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         self.sample_list.setStyleSheet("""
             QListWidget {
                 border: 1px solid #ddd;
@@ -138,6 +139,7 @@ class ReportPreview(QWidget):
             }
         """)
         self.sample_list.itemClicked.connect(self.on_sample_selected)
+        self.sample_list.itemSelectionChanged.connect(self.on_sample_selection_changed)
         sample_layout.addWidget(self.sample_list)
         
         sample_group.setLayout(sample_layout)
@@ -243,6 +245,12 @@ class ReportPreview(QWidget):
         self.generate_btn.clicked.connect(self.generate_report)
         layout.addWidget(self.generate_btn)
         
+        # 批量生成按钮
+        self.batch_generate_btn = QPushButton("📋 批量生成")
+        self.batch_generate_btn.setEnabled(False)
+        self.batch_generate_btn.clicked.connect(self.batch_generate_reports)
+        layout.addWidget(self.batch_generate_btn)
+        
         # 编辑按钮
         self.edit_btn = QPushButton("✏️ 编辑内容")
         self.edit_btn.setEnabled(False)
@@ -313,12 +321,25 @@ class ReportPreview(QWidget):
         sample = item.data(Qt.ItemDataRole.UserRole)
         self.current_sample_id = sample['id']
         
-        # 更新报告信息
+        # 更新报告信息（预览时显示临时编号）
         self.report_no_input.setText(f"RPT{sample['id']:06d}")
         self.hospital_input.setText(sample.get('hospital', ''))
         
         # 启用按钮
         self.generate_btn.setEnabled(True)
+        
+    def on_sample_selection_changed(self):
+        """样本选择变化事件"""
+        selected_items = self.sample_list.selectedItems()
+        if len(selected_items) > 1:
+            self.batch_generate_btn.setEnabled(True)
+            self.generate_btn.setEnabled(False)
+        elif len(selected_items) == 1:
+            self.batch_generate_btn.setEnabled(False)
+            self.generate_btn.setEnabled(True)
+        else:
+            self.batch_generate_btn.setEnabled(False)
+            self.generate_btn.setEnabled(False)
         self.edit_btn.setEnabled(False)
         self.note_btn.setEnabled(False)
         self.export_pdf_btn.setEnabled(False)
@@ -501,8 +522,10 @@ class ReportPreview(QWidget):
             return
         
         try:
-            # 生成报告编号
-            report_no = f"RPT{self.current_sample_id:06d}"
+            # 生成唯一报告编号（使用时间戳确保唯一性）
+            import time
+            timestamp = int(time.time())
+            report_no = f"RPT{timestamp}"
             
             # 创建报告记录
             report_data = {
@@ -534,6 +557,178 @@ class ReportPreview(QWidget):
             
         except Exception as e:
             QMessageBox.critical(self, "错误", f"报告生成失败: {str(e)}")
+    
+    def batch_generate_reports(self):
+        """批量生成报告"""
+        selected_items = self.sample_list.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "提示", "请选择要批量生成报告的样本")
+            return
+        
+        if len(selected_items) == 1:
+            self.generate_report()
+            return
+        
+        import time
+        
+        reply = QMessageBox.question(
+            self, "确认批量生成",
+            f"确定要为选中的 {len(selected_items)} 个样本批量生成报告吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        
+        success_count = 0
+        fail_count = 0
+        
+        try:
+            for item in selected_items:
+                sample = item.data(Qt.ItemDataRole.UserRole)
+                sample_id = sample['id']
+                
+                # 获取样本信息和基因数据
+                cursor = db.execute_query("SELECT * FROM samples WHERE id = ?", (sample_id,))
+                row = cursor.fetchone()
+                if not row:
+                    fail_count += 1
+                    continue
+                sample_info = dict(row)
+                
+                cursor = db.execute_query("SELECT * FROM gene_data WHERE sample_id = ?", (sample_id,))
+                gene_data_list = [dict(row) for row in cursor.fetchall()]
+                
+                # 构建检测结果表格
+                gene_table_rows = ""
+                for gene_data in gene_data_list:
+                    gene_table_rows += f"""
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd;">{gene_data.get('gene_name', '')}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">{gene_data.get('mutation_site', '')}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">{gene_data.get('genotype', '')}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">{gene_data.get('pathogenicity', '')}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">{gene_data.get('reference', '')}</td>
+                    </tr>
+                    """
+                
+                # 确定检测结论
+                has_mutation = any(gd.get('pathogenicity') in ['致病性', '可能致病性', '异常'] for gd in gene_data_list)
+                conclusion = "检测到致病变异" if has_mutation else "未检测到明确致病变异"
+                
+                # 获取样本信息
+                patient_name = sample_info.get('patient_name', '')
+                gender = sample_info.get('gender', '')
+                age = sample_info.get('age', '')
+                clinical_diagnosis = sample_info.get('clinical_diagnosis', '')
+                hospital = sample_info.get('hospital', '')
+                
+                # 生成HTML内容
+                template_name = REPORT_TEMPLATES.get(self.current_template, "临床诊断报告")
+                html_content = f"""
+                <div style="font-family: 'Microsoft YaHei', sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; background: white;">
+                    <!-- 报告头部 -->
+                    <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0078d4; padding-bottom: 20px;">
+                        <h1 style="color: #333; margin: 0;">耳聋基因检测报告</h1>
+                        <h2 style="color: #666; font-weight: normal; margin: 10px 0;">{template_name}</h2>
+                    </div>
+                    
+                    <!-- 报告信息 -->
+                    <div style="margin-bottom: 30px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>报告编号：</strong></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">RPT{int(time.time())}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>送检单位：</strong></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">{hospital}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>受检者姓名：</strong></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">{patient_name}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>性别：</strong></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">{gender}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>年龄：</strong></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">{age}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>临床诊断：</strong></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">{clinical_diagnosis}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>检测项目：</strong></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">耳聋基因检测Panel</td>
+                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>报告日期：</strong></td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">2024-06-16</td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <!-- 检测结果 -->
+                    <div style="margin-bottom: 30px;">
+                        <h3 style="color: #0078d4; border-left: 4px solid #0078d4; padding-left: 10px; margin-bottom: 15px;">检测结果</h3>
+                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
+                            <thead>
+                                <tr style="background-color: #f8f9fa;">
+                                    <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">基因名称</th>
+                                    <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">突变位点</th>
+                                    <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">基因型</th>
+                                    <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">致病性</th>
+                                    <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">参考依据</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {gene_table_rows if gene_table_rows else '<tr><td colspan="5" style="padding: 20px; text-align: center; border: 1px solid #ddd;">暂无检测数据</td></tr>'}
+                            </tbody>
+                        </table>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; border-left: 4px solid {'#f44336' if has_mutation else '#4caf50'};">
+                            <p style="margin: 0; color: #333;"><strong>检测结论：</strong>{conclusion}</p>
+                            <p style="margin: 10px 0 0 0; color: #666; font-size: 12px;">注：此结果基于当前检测范围，如有疑问请咨询遗传咨询师。</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 报告尾部 -->
+                    <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd;">
+                        <p style="color: #666; font-size: 12px;">检测机构：某医学检验实验室</p>
+                        <p style="color: #666; font-size: 12px;">联系方式：010-12345678</p>
+                    </div>
+                </div>
+                """
+                
+                # 生成唯一报告编号
+                timestamp = int(time.time() * 1000)
+                report_no = f"RPT{timestamp}"
+                
+                # 创建报告记录
+                report_data = {
+                    'sample_id': sample_id,
+                    'report_no': report_no,
+                    'template_type': self.current_template,
+                    'content': html_content,
+                    'status': 'pending'
+                }
+                
+                db.create_report(report_data)
+                
+                # 更新样本状态
+                db.execute_query(
+                    "UPDATE samples SET status = 'completed' WHERE id = ?",
+                    (sample_id,)
+                )
+                
+                success_count += 1
+                time.sleep(0.1)
+            
+            db.commit()
+            
+            QMessageBox.information(self, "批量生成完成",
+                f"批量生成完成！\n成功：{success_count} 份\n失败：{fail_count} 份")
+            
+            # 刷新样本列表
+            self.load_samples()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"批量生成失败: {str(e)}")
     
     def edit_report(self):
         """编辑报告"""
