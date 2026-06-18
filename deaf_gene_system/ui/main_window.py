@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# 权属说明：主窗口模块，负责耳聋基因检测系统的整体布局和导航
+# 权属说明：主窗口模块
 
-from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-    QStackedWidget, QLabel, QPushButton, QFrame, QSizePolicy
-)
+from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QAction, QIcon
 from pathlib import Path
+import sys
 
 from config import SOFTWARE_INFO, UI_MODULES
 from core.auth import auth_manager
@@ -20,7 +18,9 @@ from ui.report_preview import DeafGeneReportPreview
 from ui.report_review import DeafGeneReportReview
 from ui.statistics import DeafGeneStatistics
 from ui.system_settings import DeafGeneSysSetting
-import sys 
+
+import os
+import json
 
 class MainWindow(QMainWindow):
     def __init__(self):

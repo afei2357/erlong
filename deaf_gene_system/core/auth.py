@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import Dict, Optional
+import sys
 from datetime import datetime, timedelta
 import json
-import sys
+from typing import Dict, Optional
+
+import os
 
 from config import USER_ROLES, PERMISSIONS, SECURITY_CONFIG
 from core.database import db
@@ -34,21 +36,20 @@ class AuthManager:
         self._last_login_trace = None  # 记录最后一次登录的详细信息，方便排查问题
     
     def login(self, username: str, password: str) -> Dict:
-        # 先记个日志，方便追踪登录问题
         if self.debug_mode:
-            print(f"[DEBUG] 登录尝试: {username} at {datetime.now()}", file=sys.stderr)
+            print(f"用户登录尝试: {username}", file=sys.stderr)
         
         try:
             if self._is_locked(username):
                 if self.debug_mode:
-                    print(f"[DEBUG] 账户已锁定: {username}", file=sys.stderr)
+                    print(f"账户已锁定: {username}", file=sys.stderr)
                 raise AccountLockedError("账户已被锁定，请稍后再试")
             
             user = db.verify_user(username, password)
             
             if not user:
                 if self.debug_mode:
-                    print(f"[DEBUG] 验证失败: {username}", file=sys.stderr)
+                    print(f"验证失败: {username}", file=sys.stderr)
                 raise InvalidCredentialsError("用户名或密码错误")
             
             self._on_login_success(user, username)
@@ -80,7 +81,7 @@ class AuthManager:
         }
         
         if self.debug_mode:
-            print(f"[DEBUG] 登录成功: {username} (ID:{user['id']})", file=sys.stderr)
+            print(f"登录成功: {username} (ID:{user['id']})", file=sys.stderr)
         
         db.log_audit(
             user_id=user["id"],
@@ -95,12 +96,12 @@ class AuthManager:
             self._record_failed_attempt(username)
         
         if self.debug_mode:
-            print(f"[DEBUG] 登录失败: {username} - {message}", file=sys.stderr)
+            print(f"登录失败: {username} - {message}", file=sys.stderr)
     
     def logout(self):
         if self.current_user:
             if self.debug_mode:
-                print(f"[DEBUG] 登出: {self.current_user['username']}", file=sys.stderr)
+                print(f"用户登出: {self.current_user['username']}", file=sys.stderr)
             
             db.log_audit(
                 user_id=self.current_user["id"],
@@ -112,7 +113,7 @@ class AuthManager:
         
         self.current_user = None
         self.session_start = None
-        self._last_login_trace = None  # 清空登录追踪信息
+        self._last_login_trace = None
     
     def is_logged_in(self) -> bool:
         if not self.current_user or not self.session_start:
@@ -120,9 +121,8 @@ class AuthManager:
         
         session_duration = datetime.now() - self.session_start
         
-        # 临时加个调试输出，看看会话时长
         if self.debug_mode and session_duration.total_seconds() > 300:
-            print(f"[DEBUG] 会话即将过期: {session_duration.total_seconds()}s", file=sys.stderr)
+            print(f"会话即将过期: {session_duration.total_seconds()}s", file=sys.stderr)
         
         if session_duration.total_seconds() > SECURITY_CONFIG["session_timeout"]:
             self.logout()

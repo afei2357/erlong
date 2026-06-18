@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# 权属说明：本模块由耳聋基因检测系统开发组维护，仅供内部使用
+# 权属说明：系统设置
 
-
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, 
-    QLabel, QPushButton, QTableWidget, QTableWidgetItem, 
-    QHeaderView, QMessageBox, QTabWidget, QFrame, 
-    QGroupBox, QDialog, QFormLayout, QLineEdit, QComboBox,
-    QTextEdit, QFileDialog, QCheckBox
-)
+from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
+
+import json
 
 from core.database import db
 from core.auth import auth_manager

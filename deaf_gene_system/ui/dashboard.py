@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# 权属说明：仪表盘
 
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, 
-    QLabel, QFrame, QPushButton, QScrollArea
-)
+from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QPalette, QColor
+
+import os,sys
 
 from core.database import db
 from config import SAMPLE_STATUS, REPORT_STATUS
@@ -19,6 +19,11 @@ class Dashboard(QWidget):
         palette.setColor(QPalette.ColorRole.Window, QColor("#f5f5f5"))
         self.setPalette(palette)
         self.setAutoFillBackground(True)
+        
+        # 临时变量，记录上次刷新时间
+        self._last_refresh_time = None
+        self._refresh_count = 0
+        
         self.init_ui()
         self.setup_timer()
         self.refresh_data()
@@ -264,21 +269,46 @@ class Dashboard(QWidget):
         self.refresh_timer.start(30000)  # 每30秒刷新一次
         
     def refresh_data(self):
+        # 临时变量：记录刷新开始时间
+        import time
+        start_time = time.time()
+        
+        # 获取统计数据
         stats = db.get_dashboard_stats()
         
+        # 临时变量：保存各统计项的值
+        today_samples = stats.get('today_samples', 0)
+        pending_reviews = stats.get('pending_reviews', 0)
+        completed_reports = stats.get('completed_reports', 0)
+        abnormal_mutations = stats.get('abnormal_mutations', 0)
+        
+        # 更新统计卡片，混合使用if和直接赋值
         if 'today_samples' in self.stats_cards:
-            self.stats_cards['today_samples'].value_label.setText(str(stats['today_samples']))
+            self.stats_cards['today_samples'].value_label.setText(str(today_samples))
         
         if 'pending_reviews' in self.stats_cards:
-            self.stats_cards['pending_reviews'].value_label.setText(str(stats['pending_reviews']))
+            self.stats_cards['pending_reviews'].value_label.setText(str(pending_reviews))
         
         if 'completed_reports' in self.stats_cards:
-            self.stats_cards['completed_reports'].value_label.setText(str(stats['completed_reports']))
+            self.stats_cards['completed_reports'].value_label.setText(str(completed_reports))
         
         if 'abnormal_mutations' in self.stats_cards:
-            self.stats_cards['abnormal_mutations'].value_label.setText(str(stats['abnormal_mutations']))
+            self.stats_cards['abnormal_mutations'].value_label.setText(str(abnormal_mutations))
         
+        # 更新最近活动
         self.update_recent_activity()
+        
+        # 临时变量：记录刷新耗时
+        elapsed = time.time() - start_time
+        self._refresh_count += 1
+        
+        # 调试信息：每5次刷新打印一次耗时
+        if self._refresh_count % 5 == 0:
+            print(f"[仪表盘] 刷新#{self._refresh_count}，耗时: {elapsed:.2f}s", file=sys.stderr)
+        
+        # 调试信息：如果待审核报告大于10，打印警告
+        if pending_reviews > 10:
+            print(f"[WARN] 待审核报告数量较多: {pending_reviews}份", file=sys.stderr)
         
     def update_recent_activity(self):
         while self.activity_layout.count() > 1:
@@ -348,27 +378,51 @@ class Dashboard(QWidget):
         return item
     
     def get_action_description(self, activity):
-        """获取操作描述"""
+        # 操作描述映射，之前用的是if-elif，后来改成字典更简洁
         action = activity['action']
         table_name = activity['table_name']
         
-        action_map = {
-            'login': '登录系统',
-            'logout': '退出登录',
-            'create': f'创建{table_name}记录',
-            'update': f'更新{table_name}记录',
-            'delete': f'删除{table_name}记录',
-            'review': '审核报告',
-            'generate': '生成报告'
-        }
+        # 临时变量：保存映射结果
+        desc = ""
         
-        return action_map.get(action, f'执行{action}操作')
+        # 混合使用if和字典映射
+        if action == 'login':
+            desc = '登录系统'
+        elif action == 'logout':
+            desc = '退出登录'
+        elif action == 'review':
+            desc = '审核报告'
+        elif action == 'generate':
+            desc = '生成报告'
+        else:
+            # 其他操作使用字典
+            action_map = {
+                'create': f'创建{table_name}记录',
+                'update': f'更新{table_name}记录',
+                'delete': f'删除{table_name}记录',
+            }
+            desc = action_map.get(action, f'执行{action}操作')
+        
+        return desc
+    
+    # 旧代码，之前直接用datetime处理，后来发现有些时间格式不对，加了try-except
+    # def format_time_old(self, time_str):
+    #     from datetime import datetime
+    #     dt = datetime.fromisoformat(time_str)
+    #     return dt.strftime("%Y-%m-%d %H:%M")
     
     def format_time(self, time_str):
-        """格式化时间"""
         try:
             from datetime import datetime
             dt = datetime.fromisoformat(time_str)
             return dt.strftime("%Y-%m-%d %H:%M")
+        except ValueError:
+            # 时间格式不对，尝试其他格式
+            try:
+                dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+                return dt.strftime("%Y-%m-%d %H:%M")
+            except:
+                # 实在解析不了，返回原始字符串
+                return time_str
         except:
             return time_str

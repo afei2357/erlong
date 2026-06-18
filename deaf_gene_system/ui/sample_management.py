@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, 
-    QLabel, QPushButton, QLineEdit, QComboBox, QTableWidget, 
-    QTableWidgetItem, QHeaderView, QFileDialog, QMessageBox, 
-    QDialog, QFormLayout, QTextEdit, QDateEdit, QGroupBox, QFrame
-)
+from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QColor
+
+import json
 
 from core.database import db
 from core.auth import auth_manager

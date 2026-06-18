@@ -4,15 +4,12 @@
 import sys
 import time
 from pathlib import Path
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, 
-    QLabel, QPushButton, QListWidget, QListWidgetItem, 
-    QTextEdit, QFileDialog, QMessageBox, QComboBox,
-    QSplitter, QFrame, QGroupBox, QScrollArea, QFormLayout, QLineEdit
-)
+from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtGui import QFont
+
+import csv
 
 from core.database import db
 from core.auth import auth_manager

@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# 权属说明：登录模块，内部使用
+# 权属说明：登录模块
 
-
-from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
-    QPushButton, QComboBox, QFrame, QMessageBox, QGridLayout
-)
+from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QPixmap, QPainter, QColor, QPen, QIcon
 from pathlib import Path
+
+import os
 
 from config import SOFTWARE_INFO, USER_ROLES
 from core.auth import auth_manager
@@ -237,8 +235,8 @@ class DeafGeneLoginDialog(QDialog):
     def showDeafGeneForgotPassword(self):
         QMessageBox.information(self, "忘记密码", 
             "请联系系统管理员重置密码\n\n"
-            "管理员电话：13317863934\n"
-            "或者发送邮件至：huangzengfei@aonebio.com.cn")
+            # "管理员电话：13317863934\n"
+            "发送邮件至：huangzengfei@aonebio.com.cn")
         
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:

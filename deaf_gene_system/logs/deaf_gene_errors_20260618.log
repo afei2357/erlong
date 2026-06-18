@@ -1,0 +1,2 @@
+[2026-06-18 16:01:42] 程序启动失败: cannot import name 'DatabaseManager' from 'core.database' (D:\project\PycharmProjects\pyqt6\deafGene\aone_deaf_gene\deaf_gene_system\core\database.py)
+[2026-06-18 16:33:57] 程序启动失败: name 'sys' is not defined
