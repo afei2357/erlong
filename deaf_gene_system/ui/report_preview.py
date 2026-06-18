@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import sys
+import time
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, 
@@ -17,19 +19,32 @@ from core.auth import auth_manager
 from config import REPORT_TEMPLATES
 
 
-class ReportGenerationThread(QThread):
+class DeafGeneReportGenException(Exception):
+    pass
+
+
+class DeafGeneReportNoDataException(DeafGeneReportGenException):
+    pass
+
+
+class DeafGeneReportSaveException(DeafGeneReportGenException):
+    pass
+
+
+class DeafGeneReportGenerationWorker(QThread):
     progress_updated = pyqtSignal(str)
     generation_completed = pyqtSignal(dict)
     generation_failed = pyqtSignal(str)
     
     def __init__(self, sample_ids, template_type):
         super().__init__()
-        self.sample_ids = sample_ids
-        self.template_type = template_type
+        self._deafGeneSampleIds = sample_ids
+        self._deafGeneTemplateType = template_type
+        self._deafGeneStartTime = None
         
     def run(self):
+        self._deafGeneStartTime = time.time()
         try:
-            import sys
             sys.path.insert(0, str(Path(__file__).parent.parent.parent))
             from run_deaf_gene_report import generate_deaf_gene_reports
             
@@ -39,38 +54,46 @@ class ReportGenerationThread(QThread):
                 log_callback=lambda msg: self.progress_updated.emit(msg)
             )
             
+            elapsed_time = time.time() - self._deafGeneStartTime
+            print(f"[DEBUG] 报告生成耗时: {elapsed_time:.2f}s", file=sys.stderr)
+            
             if result['success']:
                 self.generation_completed.emit(result)
             else:
                 self.generation_failed.emit(result['message'])
                 
+        except ImportError:
+            self.generation_failed.emit("无法导入报告生成模块")
         except Exception as e:
             self.generation_failed.emit(str(e))
 
 
-class ReportPreview(QWidget):
+class DeafGeneReportPreview(QWidget):
     def __init__(self):
         super().__init__()
-        self.current_sample_id = None
-        self.current_template = "clinical"
-        self.init_ui()
-        self.load_samples()
+        self._deafGeneCurSampleId = None
+        self._deafGeneCurTemplate = "clinical"
+        self._deafGeneLastGenTime = None
+        self._deafGeneGenCount = 0
         
-    def init_ui(self):
+        self.initDeafGeneReportUI()
+        self.loadDeafGeneSamples()
+        
+    def initDeafGeneReportUI(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        title_label = QLabel("报告生成与预览")
+        title_label = QLabel("耳聋基因报告预览")
         title_label.setStyleSheet("QLabel { color: #333; font-size: 18px; font-weight: bold; }")
         layout.addWidget(title_label)
         
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
         
-        left_widget = self.create_left_panel()
+        left_widget = self.createDeafGeneLeftPanel()
         main_splitter.addWidget(left_widget)
         
-        right_widget = self.create_right_panel()
+        right_widget = self.createDeafGeneRightPanel()
         main_splitter.addWidget(right_widget)
         
         main_splitter.setStretchFactor(0, 1)
@@ -78,10 +101,10 @@ class ReportPreview(QWidget):
         
         layout.addWidget(main_splitter)
         
-        action_bar = self.create_action_bar()
+        action_bar = self.createDeafGeneActionBar()
         layout.addWidget(action_bar)
         
-    def create_left_panel(self):
+    def createDeafGeneLeftPanel(self):
         widget = QFrame()
         widget.setStyleSheet("background-color: white; border-radius: 8px;")
         
@@ -91,17 +114,17 @@ class ReportPreview(QWidget):
         sample_group = QGroupBox("样本选择")
         sample_layout = QVBoxLayout()
         
-        self.sample_list = QListWidget()
-        self.sample_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
-        self.sample_list.setStyleSheet("""
+        self.deaf_gene_sample_list = QListWidget()
+        self.deaf_gene_sample_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+        self.deaf_gene_sample_list.setStyleSheet("""
             QListWidget { border: 1px solid #ddd; border-radius: 4px; padding: 4px; color: #333; }
             QListWidget::item { padding: 8px; border-radius: 4px; color: #333; }
             QListWidget::item:selected { background-color: #0078d4; color: white; }
             QListWidget::item:hover { background-color: #e3f2fd; }
         """)
-        self.sample_list.itemClicked.connect(self.on_sample_selected)
-        self.sample_list.itemSelectionChanged.connect(self.on_sample_selection_changed)
-        sample_layout.addWidget(self.sample_list)
+        self.deaf_gene_sample_list.itemClicked.connect(self.onDeafGeneSampleSelected)
+        self.deaf_gene_sample_list.itemSelectionChanged.connect(self.onDeafGeneSampleSelectionChanged)
+        sample_layout.addWidget(self.deaf_gene_sample_list)
         
         sample_group.setLayout(sample_layout)
         layout.addWidget(sample_group)
@@ -109,11 +132,11 @@ class ReportPreview(QWidget):
         template_group = QGroupBox("报告模板")
         template_layout = QVBoxLayout()
         
-        self.template_combo = QComboBox()
+        self.deaf_gene_template_combo = QComboBox()
         for template_key, template_name in REPORT_TEMPLATES.items():
-            self.template_combo.addItem(template_name, template_key)
-        self.template_combo.currentTextChanged.connect(self.on_template_changed)
-        template_layout.addWidget(self.template_combo)
+            self.deaf_gene_template_combo.addItem(template_name, template_key)
+        self.deaf_gene_template_combo.currentTextChanged.connect(self.onDeafGeneTemplateChanged)
+        template_layout.addWidget(self.deaf_gene_template_combo)
         
         template_group.setLayout(template_layout)
         layout.addWidget(template_group)
@@ -121,18 +144,18 @@ class ReportPreview(QWidget):
         info_group = QGroupBox("报告信息")
         info_layout = QFormLayout()
         
-        self.report_no_input = QLineEdit()
-        self.report_no_input.setPlaceholderText("自动生成")
-        self.report_no_input.setEnabled(False)
-        info_layout.addRow("报告编号:", self.report_no_input)
+        self.deaf_gene_report_no_input = QLineEdit()
+        self.deaf_gene_report_no_input.setPlaceholderText("自动生成")
+        self.deaf_gene_report_no_input.setEnabled(False)
+        info_layout.addRow("报告编号:", self.deaf_gene_report_no_input)
         
-        self.hospital_input = QLineEdit()
-        self.hospital_input.setPlaceholderText("送检单位")
-        info_layout.addRow("送检单位:", self.hospital_input)
+        self.deaf_gene_hospital_input = QLineEdit()
+        self.deaf_gene_hospital_input.setPlaceholderText("送检单位")
+        info_layout.addRow("送检单位:", self.deaf_gene_hospital_input)
         
-        self.doctor_input = QLineEdit()
-        self.doctor_input.setPlaceholderText("主治医师")
-        info_layout.addRow("主治医师:", self.doctor_input)
+        self.deaf_gene_doctor_input = QLineEdit()
+        self.deaf_gene_doctor_input.setPlaceholderText("主治医师")
+        info_layout.addRow("主治医师:", self.deaf_gene_doctor_input)
         
         info_group.setLayout(info_layout)
         layout.addWidget(info_group)
@@ -141,7 +164,7 @@ class ReportPreview(QWidget):
         
         return widget
         
-    def create_right_panel(self):
+    def createDeafGeneRightPanel(self):
         widget = QFrame()
         widget.setStyleSheet("background-color: white; border-radius: 8px;")
         
@@ -152,164 +175,143 @@ class ReportPreview(QWidget):
         preview_title.setStyleSheet("QLabel { color: #333; font-size: 14px; font-weight: bold; }")
         layout.addWidget(preview_title)
         
-        self.preview_area = QScrollArea()
-        self.preview_area.setWidgetResizable(True)
-        self.preview_area.setStyleSheet("QScrollArea { border: 1px solid #ddd; border-radius: 4px; background-color: #f8f9fa; }")
+        self.deaf_gene_preview_area = QScrollArea()
+        self.deaf_gene_preview_area.setWidgetResizable(True)
+        self.deaf_gene_preview_area.setStyleSheet("QScrollArea { border: 1px solid #ddd; border-radius: 4px; background-color: #f8f9fa; }")
         
-        self.preview_content = QTextEdit()
-        self.preview_content.setReadOnly(True)
-        self.preview_content.setMinimumHeight(500)
-        self.preview_content.setStyleSheet("QTextEdit { background-color: white; border: none; padding: 20px; font-size: 12px; line-height: 1.6; }")
+        self.deaf_gene_preview_content = QTextEdit()
+        self.deaf_gene_preview_content.setReadOnly(True)
+        self.deaf_gene_preview_content.setMinimumHeight(500)
+        self.deaf_gene_preview_content.setStyleSheet("QTextEdit { background-color: white; border: none; padding: 20px; font-size: 12px; line-height: 1.6; }")
         
-        self.preview_area.setWidget(self.preview_content)
-        layout.addWidget(self.preview_area)
+        self.deaf_gene_preview_area.setWidget(self.deaf_gene_preview_content)
+        layout.addWidget(self.deaf_gene_preview_area)
         
         return widget
         
-    def create_action_bar(self):
+    def createDeafGeneActionBar(self):
         action_frame = QFrame()
         action_frame.setStyleSheet("background-color: white; border-radius: 8px; padding: 10px;")
         
         layout = QHBoxLayout(action_frame)
         layout.setContentsMargins(15, 5, 15, 5)
         
-        self.generate_btn = QPushButton("📄 生成报告")
-        self.generate_btn.setEnabled(False)
-        self.generate_btn.clicked.connect(self.generate_report)
-        layout.addWidget(self.generate_btn)
+        self.deaf_gene_generate_btn = QPushButton("📄 生成报告")
+        self.deaf_gene_generate_btn.setEnabled(False)
+        self.deaf_gene_generate_btn.clicked.connect(self.generateDeafGeneReport)
+        layout.addWidget(self.deaf_gene_generate_btn)
         
-        self.batch_generate_btn = QPushButton("📋 批量生成")
-        self.batch_generate_btn.setEnabled(False)
-        self.batch_generate_btn.clicked.connect(self.batch_generate_reports)
-        layout.addWidget(self.batch_generate_btn)
+        self.deaf_gene_batch_generate_btn = QPushButton("📋 批量生成")
+        self.deaf_gene_batch_generate_btn.setEnabled(False)
+        self.deaf_gene_batch_generate_btn.clicked.connect(self.batchGenerateDeafGeneReports)
+        layout.addWidget(self.deaf_gene_batch_generate_btn)
         
-        self.edit_btn = QPushButton("✏️ 编辑内容")
-        self.edit_btn.setEnabled(False)
-        self.edit_btn.clicked.connect(self.edit_report)
-        layout.addWidget(self.edit_btn)
+        self.deaf_gene_edit_btn = QPushButton("✏️ 编辑内容")
+        self.deaf_gene_edit_btn.setEnabled(False)
+        self.deaf_gene_edit_btn.clicked.connect(self.editDeafGeneReport)
+        layout.addWidget(self.deaf_gene_edit_btn)
         
-        # 添加备注按钮
-        self.note_btn = QPushButton("📝 添加备注")
-        self.note_btn.setEnabled(False)
-        self.note_btn.clicked.connect(self.add_note)
-        layout.addWidget(self.note_btn)
+        self.deaf_gene_note_btn = QPushButton("📝 添加备注")
+        self.deaf_gene_note_btn.setEnabled(False)
+        self.deaf_gene_note_btn.clicked.connect(self.addDeafGeneNote)
+        layout.addWidget(self.deaf_gene_note_btn)
         
         layout.addStretch()
         
-        # 导出PDF按钮
-        self.export_pdf_btn = QPushButton("📑 导出PDF")
-        self.export_pdf_btn.setEnabled(False)
-        self.export_pdf_btn.clicked.connect(self.export_pdf)
-        layout.addWidget(self.export_pdf_btn)
+        self.deaf_gene_export_pdf_btn = QPushButton("📑 导出PDF")
+        self.deaf_gene_export_pdf_btn.setEnabled(False)
+        self.deaf_gene_export_pdf_btn.clicked.connect(self.exportDeafGenePdf)
+        layout.addWidget(self.deaf_gene_export_pdf_btn)
         
-        # 打印按钮
-        self.print_btn = QPushButton("🖨️ 打印")
-        self.print_btn.setEnabled(False)
-        self.print_btn.clicked.connect(self.print_report)
-        layout.addWidget(self.print_btn)
+        self.deaf_gene_print_btn = QPushButton("🖨️ 打印")
+        self.deaf_gene_print_btn.setEnabled(False)
+        self.deaf_gene_print_btn.clicked.connect(self.printDeafGeneReport)
+        layout.addWidget(self.deaf_gene_print_btn)
         
-        # 保存按钮
-        self.save_btn = QPushButton("💾 保存")
-        self.save_btn.setEnabled(False)
-        self.save_btn.clicked.connect(self.save_report)
-        layout.addWidget(self.save_btn)
+        self.deaf_gene_save_btn = QPushButton("💾 保存")
+        self.deaf_gene_save_btn.setEnabled(False)
+        self.deaf_gene_save_btn.clicked.connect(self.saveDeafGeneReport)
+        layout.addWidget(self.deaf_gene_save_btn)
         
-        # 提交审核按钮
-        self.submit_btn = QPushButton("✅ 提交审核")
-        self.submit_btn.setEnabled(False)
-        self.submit_btn.clicked.connect(self.submit_review)
-        layout.addWidget(self.submit_btn)
+        self.deaf_gene_submit_btn = QPushButton("✅ 提交审核")
+        self.deaf_gene_submit_btn.setEnabled(False)
+        self.deaf_gene_submit_btn.clicked.connect(self.submitDeafGeneReview)
+        layout.addWidget(self.deaf_gene_submit_btn)
         
         return action_frame
         
-    def load_samples(self):
-        """加载样本列表"""
-        try:
-            # 获取所有样本（包含已完成和待处理的）
-            cursor = db.execute_query("""
-                SELECT * FROM samples 
-                ORDER BY created_at DESC
-            """)
-            rows = cursor.fetchall()
-            
-            # 转换为字典列表
-            samples = [dict(row) for row in rows]
-            
-            self.sample_list.clear()
-            
-            for sample in samples:
-                item = QListWidgetItem(
-                    f"{sample['sample_no']} - {sample['patient_name']}"
-                )
-                item.setData(Qt.ItemDataRole.UserRole, sample)
-                self.sample_list.addItem(item)
-                
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"加载样本列表失败: {str(e)}")
-    
-    def on_sample_selected(self, item):
-        """样本选择事件"""
+    def loadDeafGeneSamples(self):
+        cursor = db.execute_query("""
+            SELECT * FROM samples 
+            ORDER BY created_at DESC
+        """)
+        rows = cursor.fetchall()
+        
+        samples = [dict(row) for row in rows]
+        
+        self.deaf_gene_sample_list.clear()
+        
+        for sample in samples:
+            item = QListWidgetItem(
+                f"{sample['sample_no']} - {sample['patient_name']}"
+            )
+            item.setData(Qt.ItemDataRole.UserRole, sample)
+            self.deaf_gene_sample_list.addItem(item)
+        
+    def onDeafGeneSampleSelected(self, item):
         sample = item.data(Qt.ItemDataRole.UserRole)
-        self.current_sample_id = sample['id']
+        self._deafGeneCurSampleId = sample['id']
         
-        # 更新报告信息（预览时显示临时编号）
-        self.report_no_input.setText(f"RPT{sample['id']:06d}")
-        self.hospital_input.setText(sample.get('hospital', ''))
+        self.deaf_gene_report_no_input.setText(f"RPT{sample['id']:06d}")
+        self.deaf_gene_hospital_input.setText(sample.get('hospital', ''))
         
-        # 启用按钮
-        self.generate_btn.setEnabled(True)
+        self.deaf_gene_generate_btn.setEnabled(True)
         
-    def on_sample_selection_changed(self):
-        """样本选择变化事件"""
-        selected_items = self.sample_list.selectedItems()
+    def onDeafGeneSampleSelectionChanged(self):
+        selected_items = self.deaf_gene_sample_list.selectedItems()
         if len(selected_items) > 1:
-            self.batch_generate_btn.setEnabled(True)
-            self.generate_btn.setEnabled(False)
+            self.deaf_gene_batch_generate_btn.setEnabled(True)
+            self.deaf_gene_generate_btn.setEnabled(False)
         elif len(selected_items) == 1:
-            self.batch_generate_btn.setEnabled(False)
-            self.generate_btn.setEnabled(True)
+            self.deaf_gene_batch_generate_btn.setEnabled(False)
+            self.deaf_gene_generate_btn.setEnabled(True)
         else:
-            self.batch_generate_btn.setEnabled(False)
-            self.generate_btn.setEnabled(False)
-        self.edit_btn.setEnabled(False)
-        self.note_btn.setEnabled(False)
-        self.export_pdf_btn.setEnabled(False)
-        self.print_btn.setEnabled(False)
-        self.save_btn.setEnabled(False)
-        self.submit_btn.setEnabled(False)
+            self.deaf_gene_batch_generate_btn.setEnabled(False)
+            self.deaf_gene_generate_btn.setEnabled(False)
+            
+        self.deaf_gene_edit_btn.setEnabled(False)
+        self.deaf_gene_note_btn.setEnabled(False)
+        self.deaf_gene_export_pdf_btn.setEnabled(False)
+        self.deaf_gene_print_btn.setEnabled(False)
+        self.deaf_gene_save_btn.setEnabled(False)
+        self.deaf_gene_submit_btn.setEnabled(False)
         
-        # 显示预览模板
-        self.show_preview_template()
+        self.showDeafGenePreviewTemplate()
     
-    def on_template_changed(self, template_name):
-        """模板改变事件"""
-        self.current_template = self.template_combo.currentData()
-        if self.current_sample_id:
-            self.show_preview_template()
+    def onDeafGeneTemplateChanged(self, template_name):
+        self._deafGeneCurTemplate = self.deaf_gene_template_combo.currentData()
+        if self._deafGeneCurSampleId:
+            self.showDeafGenePreviewTemplate()
     
-    def show_preview_template(self):
-        """显示预览模板"""
-        template_content = self.get_template_content()
-        self.preview_content.setHtml(template_content)
+    def showDeafGenePreviewTemplate(self):
+        template_content = self.getDeafGeneTemplateContent()
+        self.deaf_gene_preview_content.setHtml(template_content)
     
-    def get_template_content(self):
-        """获取模板内容（包含实际数据）"""
-        template_name = REPORT_TEMPLATES.get(self.current_template, "临床诊断报告")
+    def getDeafGeneTemplateContent(self):
+        template_name = REPORT_TEMPLATES.get(self._deafGeneCurTemplate, "临床诊断报告")
         
-        # 获取样本信息和基因数据
         sample_info = None
         gene_data_list = []
         
-        if self.current_sample_id:
-            cursor = db.execute_query("SELECT * FROM samples WHERE id = ?", (self.current_sample_id,))
+        if self._deafGeneCurSampleId:
+            cursor = db.execute_query("SELECT * FROM samples WHERE id = ?", (self._deafGeneCurSampleId,))
             row = cursor.fetchone()
             if row:
                 sample_info = dict(row)
             
-            cursor = db.execute_query("SELECT * FROM gene_data WHERE sample_id = ?", (self.current_sample_id,))
+            cursor = db.execute_query("SELECT * FROM gene_data WHERE sample_id = ?", (self._deafGeneCurSampleId,))
             gene_data_list = [dict(row) for row in cursor.fetchall()]
         
-        # 构建检测结果表格
         gene_table_rows = ""
         for gene_data in gene_data_list:
             gene_table_rows += f"""
@@ -322,11 +324,9 @@ class ReportPreview(QWidget):
             </tr>
             """
         
-        # 确定检测结论
         has_mutation = any(gd.get('pathogenicity') in ['致病性', '可能致病性', '疑似致病', '异常'] for gd in gene_data_list)
         conclusion = "检测到致病变异" if has_mutation else "未检测到明确致病变异"
         
-        # 获取样本信息
         patient_name = sample_info.get('patient_name', '') if sample_info else ''
         gender = sample_info.get('gender', '') if sample_info else ''
         age = sample_info.get('age', '') if sample_info else ''
@@ -335,20 +335,18 @@ class ReportPreview(QWidget):
         
         html_content = f"""
         <div style="font-family: 'Microsoft YaHei', sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; background: white;">
-            <!-- 报告头部 -->
             <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0078d4; padding-bottom: 20px;">
                 <h1 style="color: #333; margin: 0;">耳聋基因检测报告</h1>
                 <h2 style="color: #666; font-weight: normal; margin: 10px 0;">{template_name}</h2>
             </div>
             
-            <!-- 报告信息 -->
             <div style="margin-bottom: 30px;">
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr>
                         <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>报告编号：</strong></td>
-                        <td style="padding: 8px; border: 1px solid #ddd;">{self.report_no_input.text() or '待生成'}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">{self.deaf_gene_report_no_input.text() or '待生成'}</td>
                         <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>送检单位：</strong></td>
-                        <td style="padding: 8px; border: 1px solid #ddd;">{hospital or self.hospital_input.text() or '待填写'}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">{hospital or self.deaf_gene_hospital_input.text() or '待填写'}</td>
                     </tr>
                     <tr>
                         <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>受检者姓名：</strong></td>
@@ -371,7 +369,6 @@ class ReportPreview(QWidget):
                 </table>
             </div>
             
-            <!-- 检测结果 -->
             <div style="margin-bottom: 30px;">
                 <h3 style="color: #0078d4; border-left: 4px solid #0078d4; padding-left: 10px; margin-bottom: 15px;">检测结果</h3>
                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
@@ -394,7 +391,6 @@ class ReportPreview(QWidget):
                 </div>
             </div>
             
-            <!-- 结果解读 -->
             <div style="margin-bottom: 30px;">
                 <h3 style="color: #0078d4; border-left: 4px solid #0078d4; padding-left: 10px; margin-bottom: 15px;">结果解读</h3>
                 <div style="line-height: 1.8; color: #555;">
@@ -409,7 +405,6 @@ class ReportPreview(QWidget):
                 </div>
             </div>
             
-            <!-- 报告说明 -->
             <div style="margin-bottom: 30px;">
                 <h3 style="color: #0078d4; border-left: 4px solid #0078d4; padding-left: 10px; margin-bottom: 15px;">报告说明</h3>
                 <div style="font-size: 11px; color: #777; line-height: 1.6;">
@@ -420,7 +415,6 @@ class ReportPreview(QWidget):
                 </div>
             </div>
             
-            <!-- 签名区域 -->
             <div style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #ddd;">
                 <table style="width: 100%;">
                     <tr>
@@ -446,61 +440,64 @@ class ReportPreview(QWidget):
         
         return html_content
     
-    def generate_report(self):
-        """生成报告"""
-        if not self.current_sample_id:
+    def generateDeafGeneReport(self):
+        if not self._deafGeneCurSampleId:
             QMessageBox.warning(self, "提示", "请先选择样本")
             return
         
+        cursor = db.execute_query("SELECT id FROM samples WHERE id = ?", (self._deafGeneCurSampleId,))
+        if not cursor.fetchone():
+            QMessageBox.warning(self, "数据错误", "样本不存在")
+            return
+        
+        timestamp = int(time.time())
+        report_no = f"RPT{timestamp}"
+        
+        report_data = {
+            'sample_id': self._deafGeneCurSampleId,
+            'report_no': report_no,
+            'template_type': self._deafGeneCurTemplate,
+            'content': self.deaf_gene_preview_content.toHtml(),
+            'status': 'pending'
+        }
+        
         try:
-            # 生成唯一报告编号（使用时间戳确保唯一性）
-            import time
-            timestamp = int(time.time())
-            report_no = f"RPT{timestamp}"
-            
-            # 创建报告记录
-            report_data = {
-                'sample_id': self.current_sample_id,
-                'report_no': report_no,
-                'template_type': self.current_template,
-                'content': self.preview_content.toHtml(),
-                'status': 'pending'
-            }
-            
             report_id = db.create_report(report_data)
-            
-            # 更新样本状态
+        except Exception as e:
+            QMessageBox.critical(self, "数据库错误", f"创建报告记录失败: {str(e)}")
+            return
+        
+        try:
             db.execute_query(
                 "UPDATE samples SET status = 'completed' WHERE id = ?",
-                (self.current_sample_id,)
+                (self._deafGeneCurSampleId,)
             )
             db.commit()
-            
-            QMessageBox.information(self, "成功", "报告生成成功")
-            
-            # 启用操作按钮
-            self.edit_btn.setEnabled(True)
-            self.note_btn.setEnabled(True)
-            self.export_pdf_btn.setEnabled(True)
-            self.print_btn.setEnabled(True)
-            self.save_btn.setEnabled(True)
-            self.submit_btn.setEnabled(True)
-            
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"报告生成失败: {str(e)}")
+            QMessageBox.critical(self, "数据库错误", f"更新样本状态失败: {str(e)}")
+            return
+        
+        self._deafGeneGenCount += 1
+        self._deafGeneLastGenTime = timestamp
+        
+        QMessageBox.information(self, "成功", "报告生成成功")
+        
+        self.deaf_gene_edit_btn.setEnabled(True)
+        self.deaf_gene_note_btn.setEnabled(True)
+        self.deaf_gene_export_pdf_btn.setEnabled(True)
+        self.deaf_gene_print_btn.setEnabled(True)
+        self.deaf_gene_save_btn.setEnabled(True)
+        self.deaf_gene_submit_btn.setEnabled(True)
     
-    def batch_generate_reports(self):
-        """批量生成报告"""
-        selected_items = self.sample_list.selectedItems()
+    def batchGenerateDeafGeneReports(self):
+        selected_items = self.deaf_gene_sample_list.selectedItems()
         if not selected_items:
             QMessageBox.warning(self, "提示", "请选择要批量生成报告的样本")
             return
         
         if len(selected_items) == 1:
-            self.generate_report()
+            self.generateDeafGeneReport()
             return
-        
-        import time
         
         reply = QMessageBox.question(
             self, "确认批量生成",
@@ -515,159 +512,143 @@ class ReportPreview(QWidget):
         success_count = 0
         fail_count = 0
         
-        try:
-            for item in selected_items:
-                sample = item.data(Qt.ItemDataRole.UserRole)
-                sample_id = sample['id']
-                
-                # 获取样本信息和基因数据
-                cursor = db.execute_query("SELECT * FROM samples WHERE id = ?", (sample_id,))
-                row = cursor.fetchone()
-                if not row:
-                    fail_count += 1
-                    continue
-                sample_info = dict(row)
-                
-                cursor = db.execute_query("SELECT * FROM gene_data WHERE sample_id = ?", (sample_id,))
-                gene_data_list = [dict(row) for row in cursor.fetchall()]
-                
-                # 构建检测结果表格
-                gene_table_rows = ""
-                for gene_data in gene_data_list:
-                    gene_table_rows += f"""
-                    <tr>
-                        <td style="padding: 8px; border: 1px solid #ddd;">{gene_data.get('gene_name', '')}</td>
-                        <td style="padding: 8px; border: 1px solid #ddd;">{gene_data.get('mutation_site', '')}</td>
-                        <td style="padding: 8px; border: 1px solid #ddd;">{gene_data.get('genotype', '')}</td>
-                        <td style="padding: 8px; border: 1px solid #ddd;">{gene_data.get('pathogenicity', '')}</td>
-                        <td style="padding: 8px; border: 1px solid #ddd;">{gene_data.get('reference', '')}</td>
-                    </tr>
-                    """
-                
-                # 确定检测结论
-                has_mutation = any(gd.get('pathogenicity') in ['致病性', '可能致病性', '疑似致病', '异常'] for gd in gene_data_list)
-                conclusion = "检测到致病变异" if has_mutation else "未检测到明确致病变异"
-                
-                # 获取样本信息
-                patient_name = sample_info.get('patient_name', '')
-                gender = sample_info.get('gender', '')
-                age = sample_info.get('age', '')
-                clinical_diagnosis = sample_info.get('clinical_diagnosis', '')
-                hospital = sample_info.get('hospital', '')
-                
-                # 生成HTML内容
-                template_name = REPORT_TEMPLATES.get(self.current_template, "临床诊断报告")
-                html_content = f"""
-                <div style="font-family: 'Microsoft YaHei', sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; background: white;">
-                    <!-- 报告头部 -->
-                    <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0078d4; padding-bottom: 20px;">
-                        <h1 style="color: #333; margin: 0;">耳聋基因检测报告</h1>
-                        <h2 style="color: #666; font-weight: normal; margin: 10px 0;">{template_name}</h2>
-                    </div>
-                    
-                    <!-- 报告信息 -->
-                    <div style="margin-bottom: 30px;">
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <tr>
-                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>报告编号：</strong></td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">RPT{int(time.time())}</td>
-                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>送检单位：</strong></td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">{hospital}</td>
+        for item in selected_items:
+            sample = item.data(Qt.ItemDataRole.UserRole)
+            sample_id = sample['id']
+            
+            cursor = db.execute_query("SELECT * FROM samples WHERE id = ?", (sample_id,))
+            row = cursor.fetchone()
+            if not row:
+                fail_count += 1
+                continue
+            sample_info = dict(row)
+            
+            cursor = db.execute_query("SELECT * FROM gene_data WHERE sample_id = ?", (sample_id,))
+            gene_data_list = [dict(row) for row in cursor.fetchall()]
+            
+            gene_table_rows = ""
+            for gene_data in gene_data_list:
+                gene_table_rows += f"""
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{gene_data.get('gene_name', '')}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{gene_data.get('mutation_site', '')}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{gene_data.get('genotype', '')}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{gene_data.get('pathogenicity', '')}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{gene_data.get('reference', '')}</td>
+                </tr>
+                """
+            
+            has_mutation = any(gd.get('pathogenicity') in ['致病性', '可能致病性', '疑似致病', '异常'] for gd in gene_data_list)
+            conclusion = "检测到致病变异" if has_mutation else "未检测到明确致病变异"
+            
+            patient_name = sample_info.get('patient_name', '')
+            gender = sample_info.get('gender', '')
+            age = sample_info.get('age', '')
+            clinical_diagnosis = sample_info.get('clinical_diagnosis', '')
+            hospital = sample_info.get('hospital', '')
+            
+            template_name = REPORT_TEMPLATES.get(self._deafGeneCurTemplate, "临床诊断报告")
+            html_content = f"""
+            <div style="font-family: 'Microsoft YaHei', sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; background: white;">
+                <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0078d4; padding-bottom: 20px;">
+                    <h1 style="color: #333; margin: 0;">耳聋基因检测报告</h1>
+                    <h2 style="color: #666; font-weight: normal; margin: 10px 0;">{template_name}</h2>
+                </div>
+                <div style="margin-bottom: 30px;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>报告编号：</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">RPT{int(time.time())}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>送检单位：</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">{hospital}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>受检者姓名：</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">{patient_name}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>性别：</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">{gender}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>年龄：</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">{age}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>临床诊断：</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">{clinical_diagnosis}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>检测项目：</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">耳聋基因检测Panel</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>报告日期：</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">2024-06-16</td>
+                        </tr>
+                    </table>
+                </div>
+                <div style="margin-bottom: 30px;">
+                    <h3 style="color: #0078d4; border-left: 4px solid #0078d4; padding-left: 10px; margin-bottom: 15px;">检测结果</h3>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
+                        <thead>
+                            <tr style="background-color: #f8f9fa;">
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">基因名称</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">突变位点</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">基因型</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">致病性</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">参考依据</th>
                             </tr>
-                            <tr>
-                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>受检者姓名：</strong></td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">{patient_name}</td>
-                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>性别：</strong></td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">{gender}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>年龄：</strong></td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">{age}</td>
-                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>临床诊断：</strong></td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">{clinical_diagnosis}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>检测项目：</strong></td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">耳聋基因检测Panel</td>
-                                <td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa;"><strong>报告日期：</strong></td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">2024-06-16</td>
-                            </tr>
-                        </table>
-                    </div>
-                    
-                    <!-- 检测结果 -->
-                    <div style="margin-bottom: 30px;">
-                        <h3 style="color: #0078d4; border-left: 4px solid #0078d4; padding-left: 10px; margin-bottom: 15px;">检测结果</h3>
-                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
-                            <thead>
-                                <tr style="background-color: #f8f9fa;">
-                                    <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">基因名称</th>
-                                    <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">突变位点</th>
-                                    <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">基因型</th>
-                                    <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">致病性</th>
-                                    <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">参考依据</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {gene_table_rows if gene_table_rows else '<tr><td colspan="5" style="padding: 20px; text-align: center; border: 1px solid #ddd;">暂无检测数据</td></tr>'}
-                            </tbody>
-                        </table>
-                        <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; border-left: 4px solid {'#f44336' if has_mutation else '#4caf50'};">
-                            <p style="margin: 0; color: #333;"><strong>检测结论：</strong>{conclusion}</p>
-                            <p style="margin: 10px 0 0 0; color: #666; font-size: 12px;">注：此结果基于当前检测范围，如有疑问请咨询遗传咨询师。</p>
-                        </div>
-                    </div>
-                    
-                    <!-- 报告尾部 -->
-                    <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd;">
-                        <p style="color: #666; font-size: 12px;">检测机构：某医学检验实验室</p>
-                        <p style="color: #666; font-size: 12px;">联系方式：010-12345678</p>
+                        </thead>
+                        <tbody>
+                            {gene_table_rows if gene_table_rows else '<tr><td colspan="5" style="padding: 20px; text-align: center; border: 1px solid #ddd;">暂无检测数据</td></tr>'}
+                        </tbody>
+                    </table>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; border-left: 4px solid {'#f44336' if has_mutation else '#4caf50'};">
+                        <p style="margin: 0; color: #333;"><strong>检测结论：</strong>{conclusion}</p>
+                        <p style="margin: 10px 0 0 0; color: #666; font-size: 12px;">注：此结果基于当前检测范围，如有疑问请咨询遗传咨询师。</p>
                     </div>
                 </div>
-                """
-                
-                # 生成唯一报告编号
-                timestamp = int(time.time() * 1000)
-                report_no = f"RPT{timestamp}"
-                
-                # 创建报告记录
-                report_data = {
-                    'sample_id': sample_id,
-                    'report_no': report_no,
-                    'template_type': self.current_template,
-                    'content': html_content,
-                    'status': 'pending'
-                }
-                
+                <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd;">
+                    <p style="color: #666; font-size: 12px;">检测机构：某医学检验实验室</p>
+                    <p style="color: #666; font-size: 12px;">联系方式：010-12345678</p>
+                </div>
+            </div>
+            """
+            
+            timestamp = int(time.time() * 1000)
+            report_no = f"RPT{timestamp}"
+            
+            report_data = {
+                'sample_id': sample_id,
+                'report_no': report_no,
+                'template_type': self._deafGeneCurTemplate,
+                'content': html_content,
+                'status': 'pending'
+            }
+            
+            try:
                 db.create_report(report_data)
-                
-                # 更新样本状态
                 db.execute_query(
                     "UPDATE samples SET status = 'completed' WHERE id = ?",
                     (sample_id,)
                 )
-                
                 success_count += 1
-                time.sleep(0.1)
+            except Exception as e:
+                fail_count += 1
             
+            time.sleep(0.1)
+        
+        try:
             db.commit()
-            
-            QMessageBox.information(self, "批量生成完成",
-                f"批量生成完成！\n成功：{success_count} 份\n失败：{fail_count} 份")
-            
-            # 刷新样本列表
-            self.load_samples()
-            
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"批量生成失败: {str(e)}")
+            QMessageBox.critical(self, "数据库错误", f"批量提交失败: {str(e)}")
+            return
+        
+        QMessageBox.information(self, "批量生成完成",
+            f"批量生成完成！\n成功：{success_count} 份\n失败：{fail_count} 份")
+        
+        self.loadDeafGeneSamples()
     
-    def edit_report(self):
-        """编辑报告"""
-        self.preview_content.setReadOnly(False)
+    def editDeafGeneReport(self):
+        self.deaf_gene_preview_content.setReadOnly(False)
         QMessageBox.information(self, "提示", "现在可以编辑报告内容，编辑完成后点击保存")
     
-    def add_note(self):
-        """添加备注"""
+    def addDeafGeneNote(self):
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
         
         dialog = QDialog(self)
@@ -695,48 +676,48 @@ class ReportPreview(QWidget):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             note = note_edit.toPlainText()
             if note:
-                # 在报告内容末尾添加备注
-                current_content = self.preview_content.toHtml()
+                current_content = self.deaf_gene_preview_content.toHtml()
                 note_html = f"""
                 <div style="margin-top: 30px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
                     <strong>备注：</strong>{note}
                 </div>
                 """
-                self.preview_content.setHtml(current_content + note_html)
+                self.deaf_gene_preview_content.setHtml(current_content + note_html)
     
-    def export_pdf(self):
-        """导出PDF"""
+    def exportDeafGenePdf(self):
         file_path, _ = QFileDialog.getSaveFileName(
             self, "保存PDF报告", "", "PDF文件 (*.pdf)"
         )
         
         if file_path:
-            # 这里实现PDF导出逻辑
             QMessageBox.information(self, "提示", "PDF导出功能开发中...")
     
-    def print_report(self):
-        """打印报告"""
-        # 这里实现打印逻辑
+    def printDeafGeneReport(self):
         QMessageBox.information(self, "提示", "打印功能开发中...")
     
-    def save_report(self):
-        """保存报告"""
+    def saveDeafGeneReport(self):
+        if not self._deafGeneCurSampleId:
+            QMessageBox.warning(self, "数据错误", "未选中样本")
+            return
+        
         try:
-            # 更新报告内容
             db.execute_query(
                 "UPDATE reports SET content = ? WHERE sample_id = ?",
-                (self.preview_content.toHtml(), self.current_sample_id)
+                (self.deaf_gene_preview_content.toHtml(), self._deafGeneCurSampleId)
             )
             db.commit()
             
-            self.preview_content.setReadOnly(True)
+            self.deaf_gene_preview_content.setReadOnly(True)
             QMessageBox.information(self, "成功", "报告保存成功")
             
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"保存失败: {str(e)}")
+            QMessageBox.critical(self, "数据库错误", f"保存失败: {str(e)}")
     
-    def submit_review(self):
-        """提交审核"""
+    def submitDeafGeneReview(self):
+        if not self._deafGeneCurSampleId:
+            QMessageBox.warning(self, "数据错误", "未选中样本")
+            return
+        
         reply = QMessageBox.question(
             self, '确认提交',
             '确定要提交报告进行审核吗？提交后将无法修改。',
@@ -745,24 +726,21 @@ class ReportPreview(QWidget):
         
         if reply == QMessageBox.StandardButton.Yes:
             try:
-                # 更新报告状态为待审核
                 db.execute_query(
                     "UPDATE reports SET status = 'pending' WHERE sample_id = ?",
-                    (self.current_sample_id,)
+                    (self._deafGeneCurSampleId,)
                 )
                 db.commit()
                 
                 QMessageBox.information(self, "成功", "报告已提交审核")
                 
-                # 禁用编辑按钮
-                self.edit_btn.setEnabled(False)
-                self.note_btn.setEnabled(False)
-                self.save_btn.setEnabled(False)
-                self.submit_btn.setEnabled(False)
+                self.deaf_gene_edit_btn.setEnabled(False)
+                self.deaf_gene_note_btn.setEnabled(False)
+                self.deaf_gene_save_btn.setEnabled(False)
+                self.deaf_gene_submit_btn.setEnabled(False)
                 
             except Exception as e:
-                QMessageBox.critical(self, "错误", f"提交失败: {str(e)}")
+                QMessageBox.critical(self, "数据库错误", f"提交失败: {str(e)}")
     
-    def refresh_data(self):
-        """刷新数据"""
-        self.load_samples()
+    def refreshDeafGeneData(self):
+        self.loadDeafGeneSamples()

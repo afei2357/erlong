@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import sys
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, 
     QLabel, QPushButton, QComboBox, QDateEdit, 
@@ -13,22 +14,41 @@ from PyQt6.QtGui import QColor, QFont
 from core.database import db
 
 
-class Statistics(QWidget):
+class DeafGeneStatQueryException(Exception):
+    pass
+
+
+class StatDateRangeInvalidException(DeafGeneStatQueryException):
+    pass
+
+
+class StatNoDataFoundException(DeafGeneStatQueryException):
+    pass
+
+
+class DeafGeneStatistics(QWidget):
     def __init__(self):
         super().__init__()
-        self.init_ui()
-        self.load_statistics()
+        self._deafGeneStartDate = QDate.currentDate().addMonths(-1)
+        self._deafGeneEndDate = QDate.currentDate()
+        self._deafGeneCurHospital = None
+        self._deafGeneCurGene = None
+        self._deafGeneCurMutType = None
+        self._deafGeneCurResult = None
         
-    def init_ui(self):
+        self.initDeafGeneStatUI()
+        self.loadDeafGeneStatData()
+        
+    def initDeafGeneStatUI(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        title_label = QLabel("统计查询")
+        title_label = QLabel("耳聋基因统计查询")
         title_label.setStyleSheet("QLabel { color: #333; font-size: 18px; font-weight: bold; }")
         layout.addWidget(title_label)
         
-        filter_area = self.create_filter_area()
+        filter_area = self.createDeafGeneFilterArea()
         layout.addWidget(filter_area)
         
         self.tab_widget = QTabWidget()
@@ -40,18 +60,18 @@ class Statistics(QWidget):
             QTabBar::tab:selected { background-color: white; border-bottom: 3px solid #0078d4; font-weight: bold; }
         """)
         
-        self.data_tab = self.create_data_tab()
+        self.data_tab = self.createDeafGeneDataTab()
         self.tab_widget.addTab(self.data_tab, "数据表格")
         
-        self.chart_tab = self.create_chart_tab()
+        self.chart_tab = self.createDeafGeneChartTab()
         self.tab_widget.addTab(self.chart_tab, "图表展示")
         
         layout.addWidget(self.tab_widget)
         
-        action_bar = self.create_action_bar()
+        action_bar = self.createDeafGeneActionBar()
         layout.addWidget(action_bar)
         
-    def create_filter_area(self):
+    def createDeafGeneFilterArea(self):
         filter_frame = QFrame()
         filter_frame.setStyleSheet("background-color: white; border-radius: 8px; padding: 15px;")
         
@@ -63,77 +83,77 @@ class Statistics(QWidget):
         layout.addWidget(time_label, 0, 0)
         
         date_layout = QHBoxLayout()
-        self.start_date = QDateEdit()
-        self.start_date.setCalendarPopup(True)
-        self.start_date.setDate(QDate.currentDate().addMonths(-1))
-        self.start_date.setStyleSheet("color: #333333; background-color: white;")
-        date_layout.addWidget(self.start_date)
+        self.deaf_gene_start_date_edit = QDateEdit()
+        self.deaf_gene_start_date_edit.setCalendarPopup(True)
+        self.deaf_gene_start_date_edit.setDate(self._deafGeneStartDate)
+        self.deaf_gene_start_date_edit.setStyleSheet("color: #333333; background-color: white;")
+        date_layout.addWidget(self.deaf_gene_start_date_edit)
         
         to_label = QLabel("至")
         to_label.setStyleSheet("color: #333333;")
         date_layout.addWidget(to_label)
         
-        self.end_date = QDateEdit()
-        self.end_date.setCalendarPopup(True)
-        self.end_date.setDate(QDate.currentDate())
-        self.end_date.setStyleSheet("color: #333333; background-color: white;")
-        date_layout.addWidget(self.end_date)
+        self.deaf_gene_end_date_edit = QDateEdit()
+        self.deaf_gene_end_date_edit.setCalendarPopup(True)
+        self.deaf_gene_end_date_edit.setDate(self._deafGeneEndDate)
+        self.deaf_gene_end_date_edit.setStyleSheet("color: #333333; background-color: white;")
+        date_layout.addWidget(self.deaf_gene_end_date_edit)
         
         layout.addLayout(date_layout, 0, 1)
         
         hospital_label = QLabel("送检单位:")
         hospital_label.setStyleSheet("color: #333333;")
         layout.addWidget(hospital_label, 0, 2)
-        self.hospital_filter = QComboBox()
-        self.hospital_filter.addItem("全部", None)
-        layout.addWidget(self.hospital_filter, 0, 3)
+        self.deaf_gene_hospital_combo = QComboBox()
+        self.deaf_gene_hospital_combo.addItem("全部", None)
+        layout.addWidget(self.deaf_gene_hospital_combo, 0, 3)
         
         gene_label = QLabel("基因类型:")
         gene_label.setStyleSheet("color: #333333;")
         layout.addWidget(gene_label, 1, 0)
-        self.gene_filter = QComboBox()
-        self.gene_filter.addItem("全部", None)
-        self.gene_filter.addItem("GJB2", "GJB2")
-        self.gene_filter.addItem("GJB3", "GJB3")
-        self.gene_filter.addItem("SLC26A4", "SLC26A4")
-        self.gene_filter.addItem("MT-RNR1", "MT-RNR1")
-        layout.addWidget(self.gene_filter, 1, 1)
+        self.deaf_gene_gene_combo = QComboBox()
+        self.deaf_gene_gene_combo.addItem("全部", None)
+        self.deaf_gene_gene_combo.addItem("GJB2", "GJB2")
+        self.deaf_gene_gene_combo.addItem("GJB3", "GJB3")
+        self.deaf_gene_gene_combo.addItem("SLC26A4", "SLC26A4")
+        self.deaf_gene_gene_combo.addItem("MT-RNR1", "MT-RNR1")
+        layout.addWidget(self.deaf_gene_gene_combo, 1, 1)
         
         mutation_label = QLabel("突变类型:")
         mutation_label.setStyleSheet("color: #333333;")
         layout.addWidget(mutation_label, 1, 2)
-        self.mutation_filter = QComboBox()
-        self.mutation_filter.addItem("全部", None)
-        self.mutation_filter.addItem("致病", "pathogenic")
-        self.mutation_filter.addItem("疑似致病", "likely_pathogenic")
-        self.mutation_filter.addItem("良性", "benign")
-        layout.addWidget(self.mutation_filter, 1, 3)
+        self.deaf_gene_mut_combo = QComboBox()
+        self.deaf_gene_mut_combo.addItem("全部", None)
+        self.deaf_gene_mut_combo.addItem("致病", "pathogenic")
+        self.deaf_gene_mut_combo.addItem("疑似致病", "likely_pathogenic")
+        self.deaf_gene_mut_combo.addItem("良性", "benign")
+        layout.addWidget(self.deaf_gene_mut_combo, 1, 3)
         
         result_label = QLabel("检测结果:")
         result_label.setStyleSheet("color: #333333;")
         layout.addWidget(result_label, 2, 0)
-        self.result_filter = QComboBox()
-        self.result_filter.addItem("全部", None)
-        self.result_filter.addItem("异常", "abnormal")
-        self.result_filter.addItem("正常", "normal")
-        layout.addWidget(self.result_filter, 2, 1)
+        self.deaf_gene_result_combo = QComboBox()
+        self.deaf_gene_result_combo.addItem("全部", None)
+        self.deaf_gene_result_combo.addItem("异常", "abnormal")
+        self.deaf_gene_result_combo.addItem("正常", "normal")
+        layout.addWidget(self.deaf_gene_result_combo, 2, 1)
         
         query_btn = QPushButton("🔍 查询")
-        query_btn.clicked.connect(self.query_data)
+        query_btn.clicked.connect(self.queryDeafGeneStatData)
         layout.addWidget(query_btn, 2, 2)
         
         reset_btn = QPushButton("🔄 重置")
-        reset_btn.clicked.connect(self.reset_filters)
+        reset_btn.clicked.connect(self.resetDeafGeneFilters)
         layout.addWidget(reset_btn, 2, 3)
         
         return filter_frame
         
-    def create_data_tab(self):
+    def createDeafGeneDataTab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         
-        self.stats_table = QTableWidget()
-        self.stats_table.setStyleSheet("""
+        self.deaf_gene_stat_table = QTableWidget()
+        self.deaf_gene_stat_table.setStyleSheet("""
             QTableWidget { background-color: white; border-radius: 8px; gridline-color: #eee; color: #333; }
             QTableWidget::item { padding: 8px; color: #333; }
             QTableWidget::item:selected { background-color: #0078d4; color: white; }
@@ -144,19 +164,19 @@ class Statistics(QWidget):
             "日期", "样本数量", "异常数量", "正常数量", 
             "GJB2突变", "SLC26A4突变", "MT-RNR1突变", "其他突变"
         ]
-        self.stats_table.setColumnCount(len(headers))
-        self.stats_table.setHorizontalHeaderLabels(headers)
+        self.deaf_gene_stat_table.setColumnCount(len(headers))
+        self.deaf_gene_stat_table.setHorizontalHeaderLabels(headers)
         
-        self.stats_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.stats_table.verticalHeader().setDefaultSectionSize(40)
-        self.stats_table.verticalHeader().setVisible(False)
-        self.stats_table.horizontalHeader().setVisible(True)
+        self.deaf_gene_stat_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.deaf_gene_stat_table.verticalHeader().setDefaultSectionSize(40)
+        self.deaf_gene_stat_table.verticalHeader().setVisible(False)
+        self.deaf_gene_stat_table.horizontalHeader().setVisible(True)
         
-        layout.addWidget(self.stats_table)
+        layout.addWidget(self.deaf_gene_stat_table)
         
         return widget
         
-    def create_chart_tab(self):
+    def createDeafGeneChartTab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(20)
@@ -165,46 +185,46 @@ class Statistics(QWidget):
         cards_layout = QHBoxLayout()
         cards_layout.setSpacing(15)
         
-        total_card = self.create_stat_card("总样本数", "0", "#0078d4", "📊")
+        total_card = self.createDeafGeneStatCard("总样本数", "0", "#0078d4", "📊")
         cards_layout.addWidget(total_card)
-        self.total_card = total_card
+        self.deaf_gene_total_card = total_card
         
-        abnormal_card = self.create_stat_card("异常样本数", "0", "#f44336", "⚠️")
+        abnormal_card = self.createDeafGeneStatCard("异常样本数", "0", "#f44336", "⚠️")
         cards_layout.addWidget(abnormal_card)
-        self.abnormal_card = abnormal_card
+        self.deaf_gene_abnormal_card = abnormal_card
         
-        normal_card = self.create_stat_card("正常样本数", "0", "#4caf50", "✅")
+        normal_card = self.createDeafGeneStatCard("正常样本数", "0", "#4caf50", "✅")
         cards_layout.addWidget(normal_card)
-        self.normal_card = normal_card
+        self.deaf_gene_normal_card = normal_card
         
-        rate_card = self.create_stat_card("异常率", "0%", "#ff9800", "📈")
+        rate_card = self.createDeafGeneStatCard("异常率", "0%", "#ff9800", "📈")
         cards_layout.addWidget(rate_card)
-        self.rate_card = rate_card
+        self.deaf_gene_rate_card = rate_card
         
         layout.addLayout(cards_layout)
         
-        gene_group = QGroupBox("基因突变分布")
+        gene_group = QGroupBox("耳聋基因突变分布")
         gene_layout = QVBoxLayout(gene_group)
         gene_layout.setContentsMargins(15, 15, 15, 15)
         
-        self.gene_distribution_table = QTableWidget()
-        self.gene_distribution_table.setStyleSheet("""
+        self.deaf_gene_dist_table = QTableWidget()
+        self.deaf_gene_dist_table.setStyleSheet("""
             QTableWidget { background-color: white; border-radius: 8px; gridline-color: #eee; color: #333; }
             QTableWidget::item { padding: 8px; color: #333; }
             QTableWidget::item:selected { background-color: #0078d4; color: white; }
             QHeaderView::section { background-color: #f0f0f0; color: #333333; padding: 8px; border: none; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd; font-weight: bold; }
         """)
-        self.gene_distribution_table.setColumnCount(3)
-        self.gene_distribution_table.setHorizontalHeaderLabels(["基因名称", "突变数量", "占比"])
-        self.gene_distribution_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.gene_distribution_table.verticalHeader().setVisible(False)
-        gene_layout.addWidget(self.gene_distribution_table)
+        self.deaf_gene_dist_table.setColumnCount(3)
+        self.deaf_gene_dist_table.setHorizontalHeaderLabels(["基因名称", "突变数量", "占比"])
+        self.deaf_gene_dist_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.deaf_gene_dist_table.verticalHeader().setVisible(False)
+        gene_layout.addWidget(self.deaf_gene_dist_table)
         
         layout.addWidget(gene_group)
         
         return widget
         
-    def create_stat_card(self, title, value, color, icon):
+    def createDeafGeneStatCard(self, title, value, color, icon):
         card = QFrame()
         card.setStyleSheet(f"QFrame {{ background-color: {color}; border-radius: 8px; }}")
         card.setMinimumHeight(140)
@@ -241,7 +261,7 @@ class Statistics(QWidget):
         
         return card
         
-    def create_action_bar(self):
+    def createDeafGeneActionBar(self):
         action_frame = QFrame()
         action_frame.setStyleSheet("background-color: white; border-radius: 8px; padding: 10px;")
         
@@ -249,231 +269,217 @@ class Statistics(QWidget):
         layout.setContentsMargins(15, 5, 15, 5)
         
         export_excel_btn = QPushButton("📊 导出Excel")
-        export_excel_btn.clicked.connect(self.export_excel)
+        export_excel_btn.clicked.connect(self.exportDeafGeneExcel)
         layout.addWidget(export_excel_btn)
         
         print_btn = QPushButton("🖨️ 打印报表")
-        print_btn.clicked.connect(self.print_report)
+        print_btn.clicked.connect(self.printDeafGeneReport)
         layout.addWidget(print_btn)
         
         layout.addStretch()
         
         return action_frame
         
-    def load_statistics(self):
-        try:
-            cursor = db.execute_query("""
-                SELECT DISTINCT hospital FROM samples 
-                WHERE hospital IS NOT NULL AND hospital != ''
-                ORDER BY hospital
-            """)
-            hospitals = cursor.fetchall()
-            
-            current_hospital = self.hospital_filter.currentData()
-            
-            self.hospital_filter.clear()
-            self.hospital_filter.addItem("全部", None)
-            for hospital in hospitals:
-                self.hospital_filter.addItem(hospital['hospital'], hospital['hospital'])
-            
-            if current_hospital:
-                index = self.hospital_filter.findData(current_hospital)
-                if index >= 0:
-                    self.hospital_filter.setCurrentIndex(index)
-            
-            self.query_data()
-            
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"加载统计数据失败: {str(e)}")
-    
-    def query_data(self):
-        try:
-            start_date = self.start_date.date().toString("yyyy-MM-dd")
-            end_date = self.end_date.date().toString("yyyy-MM-dd")
-            hospital = self.hospital_filter.currentData()
-            gene_name = self.gene_filter.currentData()
-            mutation_type = self.mutation_filter.currentData()
-            result_status = self.result_filter.currentData()
-            
-            conditions = ["DATE(s.created_at) BETWEEN ? AND ?"]
-            params = [start_date, end_date]
-            
-            if hospital:
-                conditions.append("s.hospital = ?")
-                params.append(hospital)
-            
-            gene_conditions = []
-            gene_params = []
-            if gene_name:
-                gene_conditions.append("g.gene_name = ?")
-                gene_params.append(gene_name)
-            
-            if mutation_type:
-                mapping = {
-                    'pathogenic': '致病性',
-                    'likely_pathogenic': '疑似致病',
-                    'benign': '良性'
-                }
-                gene_conditions.append("g.pathogenicity = ?")
-                gene_params.append(mapping.get(mutation_type, mutation_type))
-            
-            gene_where = ""
-            if gene_conditions:
-                gene_where = " AND " + " AND ".join(gene_conditions)
-            
-            where_clause = " WHERE " + " AND ".join(conditions)
-            
-            if gene_name or mutation_type:
-                cursor = db.execute_query(f"""
-                    SELECT 
-                        DATE(s.created_at) as date,
-                        COUNT(s.id) as total,
-                        SUM(CASE WHEN 
-                            s.clinical_diagnosis LIKE '%异常%' OR g.pathogenicity IN ('致病性', '可能致病性', '疑似致病', '异常')
-                        THEN 1 ELSE 0 END) as abnormal,
-                        SUM(CASE WHEN 
-                            s.clinical_diagnosis NOT LIKE '%异常%' AND g.pathogenicity NOT IN ('致病性', '可能致病性', '疑似致病', '异常')
-                        THEN 1 ELSE 0 END) as normal
-                    FROM samples s
-                    INNER JOIN gene_data g ON s.id = g.sample_id
-                    {where_clause}
-                    {gene_where}
-                    GROUP BY DATE(s.created_at)
-                    ORDER BY date DESC
-                """, tuple(params + gene_params))
-            else:
-                cursor = db.execute_query(f"""
-                    SELECT 
-                        DATE(s.created_at) as date,
-                        COUNT(s.id) as total,
-                        SUM(CASE WHEN 
-                            s.clinical_diagnosis LIKE '%异常%' OR EXISTS (
-                                SELECT 1 FROM gene_data g 
-                                WHERE g.sample_id = s.id
-                                AND g.pathogenicity IN ('致病性', '可能致病性', '疑似致病', '异常')
-                            ) THEN 1 ELSE 0 END) as abnormal,
-                        SUM(CASE WHEN 
-                            s.clinical_diagnosis NOT LIKE '%异常%' AND NOT EXISTS (
-                                SELECT 1 FROM gene_data g 
-                                WHERE g.sample_id = s.id
-                                AND g.pathogenicity IN ('致病性', '可能致病性', '疑似致病', '异常')
-                            ) THEN 1 ELSE 0 END) as normal
-                    FROM samples s
-                    {where_clause}
-                    GROUP BY DATE(s.created_at)
-                    ORDER BY date DESC
-                """, tuple(params))
-            
-            results = cursor.fetchall()
-            
-            if result_status:
-                filtered_results = []
-                for r in results:
-                    if result_status == 'abnormal':
-                        if r['abnormal'] > 0:
-                            filtered_results.append(r)
-                    else:
-                        if r['abnormal'] == 0:
-                            filtered_results.append(r)
-                results = filtered_results
-            
-            self.populate_data_table(results)
-            
-            self.update_charts(results)
-            
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"查询数据失败: {str(e)}")
-    
-    def populate_data_table(self, results):
-        """填充数据表格"""
-        self.stats_table.setRowCount(len(results))
+    def loadDeafGeneStatData(self):
+        cursor = db.execute_query("""
+            SELECT DISTINCT hospital FROM samples 
+            WHERE hospital IS NOT NULL AND hospital != ''
+            ORDER BY hospital
+        """)
+        hospitals = cursor.fetchall()
         
-        total_samples = 0
-        total_abnormal = 0
+        current_hospital = self.deaf_gene_hospital_combo.currentData()
+        
+        self.deaf_gene_hospital_combo.clear()
+        self.deaf_gene_hospital_combo.addItem("全部", None)
+        for hospital in hospitals:
+            self.deaf_gene_hospital_combo.addItem(hospital['hospital'], hospital['hospital'])
+        
+        if current_hospital:
+            index = self.deaf_gene_hospital_combo.findData(current_hospital)
+            if index >= 0:
+                self.deaf_gene_hospital_combo.setCurrentIndex(index)
+        
+        self.queryDeafGeneStatData()
+        
+    def queryDeafGeneStatData(self):
+        start_date_str = self.deaf_gene_start_date_edit.date().toString("yyyy-MM-dd")
+        end_date_str = self.deaf_gene_end_date_edit.date().toString("yyyy-MM-dd")
+        hospital_filter = self.deaf_gene_hospital_combo.currentData()
+        gene_filter = self.deaf_gene_gene_combo.currentData()
+        mutation_filter = self.deaf_gene_mut_combo.currentData()
+        result_filter = self.deaf_gene_result_combo.currentData()
+        
+        if start_date_str > end_date_str:
+            QMessageBox.warning(self, "参数错误", "开始日期不能大于结束日期")
+            return
+        
+        conditions = ["DATE(s.created_at) BETWEEN ? AND ?"]
+        params = [start_date_str, end_date_str]
+        
+        if hospital_filter:
+            conditions.append("s.hospital = ?")
+            params.append(hospital_filter)
+        
+        gene_conditions = []
+        gene_params = []
+        if gene_filter:
+            gene_conditions.append("g.gene_name = ?")
+            gene_params.append(gene_filter)
+        
+        if mutation_filter:
+            mut_mapping = {
+                'pathogenic': '致病性',
+                'likely_pathogenic': '疑似致病',
+                'benign': '良性'
+            }
+            gene_conditions.append("g.pathogenicity = ?")
+            gene_params.append(mut_mapping.get(mutation_filter, mutation_filter))
+        
+        gene_where = ""
+        if gene_conditions:
+            gene_where = " AND " + " AND ".join(gene_conditions)
+        
+        where_clause = " WHERE " + " AND ".join(conditions)
+        
+        if gene_filter or mutation_filter:
+            cursor = db.execute_query(f"""
+                SELECT 
+                    DATE(s.created_at) as date,
+                    COUNT(s.id) as total,
+                    SUM(CASE WHEN 
+                        s.clinical_diagnosis LIKE '%异常%' OR g.pathogenicity IN ('致病性', '可能致病性', '疑似致病', '异常')
+                    THEN 1 ELSE 0 END) as abnormal,
+                    SUM(CASE WHEN 
+                        s.clinical_diagnosis NOT LIKE '%异常%' AND g.pathogenicity NOT IN ('致病性', '可能致病性', '疑似致病', '异常')
+                    THEN 1 ELSE 0 END) as normal
+                FROM samples s
+                INNER JOIN gene_data g ON s.id = g.sample_id
+                {where_clause}
+                {gene_where}
+                GROUP BY DATE(s.created_at)
+                ORDER BY date DESC
+            """, tuple(params + gene_params))
+        else:
+            cursor = db.execute_query(f"""
+                SELECT 
+                    DATE(s.created_at) as date,
+                    COUNT(s.id) as total,
+                    SUM(CASE WHEN 
+                        s.clinical_diagnosis LIKE '%异常%' OR EXISTS (
+                            SELECT 1 FROM gene_data g 
+                            WHERE g.sample_id = s.id
+                            AND g.pathogenicity IN ('致病性', '可能致病性', '疑似致病', '异常')
+                        ) THEN 1 ELSE 0 END) as abnormal,
+                    SUM(CASE WHEN 
+                        s.clinical_diagnosis NOT LIKE '%异常%' AND NOT EXISTS (
+                            SELECT 1 FROM gene_data g 
+                            WHERE g.sample_id = s.id
+                            AND g.pathogenicity IN ('致病性', '可能致病性', '疑似致病', '异常')
+                        ) THEN 1 ELSE 0 END) as normal
+                FROM samples s
+                {where_clause}
+                GROUP BY DATE(s.created_at)
+                ORDER BY date DESC
+            """, tuple(params))
+        
+        results = cursor.fetchall()
+        
+        if result_filter:
+            filtered_results = []
+            for r in results:
+                if result_filter == 'abnormal':
+                    if r['abnormal'] > 0:
+                        filtered_results.append(r)
+                else:
+                    if r['abnormal'] == 0:
+                        filtered_results.append(r)
+            results = filtered_results
+        
+        if not results:
+            QMessageBox.information(self, "提示", "当前条件下没有查询到数据")
+            self.deaf_gene_stat_table.setRowCount(0)
+            return
+        
+        self.fillDeafGeneStatTable(results)
+        self.updateDeafGeneCharts(results)
+        
+    def fillDeafGeneStatTable(self, results):
+        self.deaf_gene_stat_table.setRowCount(len(results))
+        
+        total_samples_count = 0
+        total_abnormal_count = 0
         
         for row, result in enumerate(results):
-            # 日期
-            self.stats_table.setItem(row, 0, QTableWidgetItem(result['date']))
+            self.deaf_gene_stat_table.setItem(row, 0, QTableWidgetItem(result['date']))
             
-            # 样本数量
-            total_samples += result['total']
-            self.stats_table.setItem(row, 1, QTableWidgetItem(str(result['total'])))
+            total_samples_count += result['total']
+            self.deaf_gene_stat_table.setItem(row, 1, QTableWidgetItem(str(result['total'])))
             
-            # 异常数量
-            total_abnormal += result['abnormal']
-            self.stats_table.setItem(row, 2, QTableWidgetItem(str(result['abnormal'])))
+            total_abnormal_count += result['abnormal']
+            self.deaf_gene_stat_table.setItem(row, 2, QTableWidgetItem(str(result['abnormal'])))
             
-            # 正常数量
             normal_count = result['normal']
-            self.stats_table.setItem(row, 3, QTableWidgetItem(str(normal_count)))
+            self.deaf_gene_stat_table.setItem(row, 3, QTableWidgetItem(str(normal_count)))
             
-            # 各基因突变数量（这里用模拟数据）
-            self.stats_table.setItem(row, 4, QTableWidgetItem(str(result['abnormal'] // 2)))  # GJB2
-            self.stats_table.setItem(row, 5, QTableWidgetItem(str(result['abnormal'] // 3)))  # SLC26A4
-            self.stats_table.setItem(row, 6, QTableWidgetItem(str(result['abnormal'] // 6)))  # MT-RNR1
-            self.stats_table.setItem(row, 7, QTableWidgetItem(str(result['abnormal'] // 6)))  # 其他
+            self.deaf_gene_stat_table.setItem(row, 4, QTableWidgetItem(str(result['abnormal'] // 2)))
+            self.deaf_gene_stat_table.setItem(row, 5, QTableWidgetItem(str(result['abnormal'] // 3)))
+            self.deaf_gene_stat_table.setItem(row, 6, QTableWidgetItem(str(result['abnormal'] // 6)))
+            self.deaf_gene_stat_table.setItem(row, 7, QTableWidgetItem(str(result['abnormal'] // 6)))
         
-        # 更新统计卡片
-        self.total_card.value_label.setText(str(total_samples))
-        self.abnormal_card.value_label.setText(str(total_abnormal))
-        self.normal_card.value_label.setText(str(total_samples - total_abnormal))
+        self.deaf_gene_total_card.value_label.setText(str(total_samples_count))
+        self.deaf_gene_abnormal_card.value_label.setText(str(total_abnormal_count))
+        self.deaf_gene_normal_card.value_label.setText(str(total_samples_count - total_abnormal_count))
         
-        if total_samples > 0:
-            rate = (total_abnormal / total_samples) * 100
-            self.rate_card.value_label.setText(f"{rate:.1f}%")
+        if total_samples_count > 0:
+            abnormal_rate = (total_abnormal_count / total_samples_count) * 100
+            self.deaf_gene_rate_card.value_label.setText(f"{abnormal_rate:.1f}%")
         else:
-            self.rate_card.value_label.setText("0%")
+            self.deaf_gene_rate_card.value_label.setText("0%")
     
-    def update_charts(self, results):
-        """更新图表"""
-        # 更新基因突变分布
-        total_abnormal = sum(result['abnormal'] for result in results)
+    def updateDeafGeneCharts(self, results):
+        total_abnormal_count = sum(result['abnormal'] for result in results)
         
-        gene_data = [
-            ("GJB2", total_abnormal // 2),
-            ("SLC26A4", total_abnormal // 3),
-            ("MT-RNR1", total_abnormal // 6),
-            ("GJB3", total_abnormal // 6)
+        gene_dist_data = [
+            ("GJB2", total_abnormal_count // 2),
+            ("SLC26A4", total_abnormal_count // 3),
+            ("MT-RNR1", total_abnormal_count // 6),
+            ("GJB3", total_abnormal_count // 6)
         ]
         
-        self.gene_distribution_table.setRowCount(len(gene_data))
+        self.deaf_gene_dist_table.setRowCount(len(gene_dist_data))
         
-        for row, (gene_name, count) in enumerate(gene_data):
-            self.gene_distribution_table.setItem(row, 0, QTableWidgetItem(gene_name))
-            self.gene_distribution_table.setItem(row, 1, QTableWidgetItem(str(count)))
+        for row, (gene_name, count) in enumerate(gene_dist_data):
+            self.deaf_gene_dist_table.setItem(row, 0, QTableWidgetItem(gene_name))
+            self.deaf_gene_dist_table.setItem(row, 1, QTableWidgetItem(str(count)))
             
-            if total_abnormal > 0:
-                percentage = (count / total_abnormal) * 100
-                self.gene_distribution_table.setItem(row, 2, QTableWidgetItem(f"{percentage:.1f}%"))
+            if total_abnormal_count > 0:
+                percentage = (count / total_abnormal_count) * 100
+                self.deaf_gene_dist_table.setItem(row, 2, QTableWidgetItem(f"{percentage:.1f}%"))
             else:
-                self.gene_distribution_table.setItem(row, 2, QTableWidgetItem("0%"))
+                self.deaf_gene_dist_table.setItem(row, 2, QTableWidgetItem("0%"))
     
-    def reset_filters(self):
-        """重置筛选条件"""
-        self.start_date.setDate(QDate.currentDate().addMonths(-1))
-        self.end_date.setDate(QDate.currentDate())
-        self.hospital_filter.setCurrentIndex(0)
-        self.gene_filter.setCurrentIndex(0)
-        self.mutation_filter.setCurrentIndex(0)
-        self.result_filter.setCurrentIndex(0)
-        self.query_data()
+    def resetDeafGeneFilters(self):
+        self.deaf_gene_start_date_edit.setDate(QDate.currentDate().addMonths(-1))
+        self.deaf_gene_end_date_edit.setDate(QDate.currentDate())
+        self.deaf_gene_hospital_combo.setCurrentIndex(0)
+        self.deaf_gene_gene_combo.setCurrentIndex(0)
+        self.deaf_gene_mut_combo.setCurrentIndex(0)
+        self.deaf_gene_result_combo.setCurrentIndex(0)
+        self.queryDeafGeneStatData()
     
-    def export_excel(self):
-        """导出Excel"""
+    def exportDeafGeneExcel(self):
         from PyQt6.QtWidgets import QFileDialog
         
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "保存统计报表", "", "Excel文件 (*.xlsx)"
+            self, "保存耳聋基因统计报表", "", "Excel文件 (*.xlsx)"
         )
         
         if file_path:
-            # 这里实现Excel导出逻辑
             QMessageBox.information(self, "提示", "Excel导出功能开发中...")
     
-    def print_report(self):
-        """打印报表"""
+    def printDeafGeneReport(self):
         QMessageBox.information(self, "提示", "打印功能开发中...")
     
-    def refresh_data(self):
-        """刷新数据"""
-        self.load_statistics()
+    def refreshDeafGeneData(self):
+        self.loadDeafGeneStatData()

@@ -56,6 +56,12 @@ class DeafGeneAnalysis(QWidget):
         super().__init__()
         self.deaf_gene_excel_path = None  # 当前选中的Excel文件路径
         self.deaf_gene_worker_thread = None  # 后台分析线程
+        
+        # 调试用的临时变量，方便追踪问题
+        self._debug_last_analysis_time = None  # 记录上次分析的时间
+        self._debug_analysis_count = 0  # 记录分析次数
+        self._debug_last_result = None  # 保存上次的分析结果，方便调试
+        
         self.setup_interface()
         
     def setup_interface(self):
@@ -257,6 +263,11 @@ class DeafGeneAnalysis(QWidget):
             QMessageBox.warning(self, "提示", "请先选择要分析的文件")
             return
         
+        # 调试：记录分析开始时间和次数
+        self._debug_analysis_count += 1
+        self._debug_last_analysis_time = __import__('time').time()
+        print(f"[DEBUG] 第{self._debug_analysis_count}次分析开始: {self.deaf_gene_excel_path}", file=sys.stderr)
+        
         # 创建临时目录存放分析结果
         output_dir = Path("temp_analysis")
         output_dir.mkdir(exist_ok=True)
@@ -295,6 +306,14 @@ class DeafGeneAnalysis(QWidget):
         # 分析完成处理 - 显示结果、启用后续操作按钮
         self.deaf_gene_analysis_progress.setValue(100)
         self.deaf_gene_analysis_log.append("✅ 分析完成！")
+        
+        # 调试：记录分析耗时和保存结果
+        if self._debug_last_analysis_time:
+            elapsed = __import__('time').time() - self._debug_last_analysis_time
+            print(f"[DEBUG] 分析完成，耗时: {elapsed:.2f}s", file=sys.stderr)
+        
+        self._debug_last_result = result
+        print(f"[DEBUG] 分析结果: {len(result['samples'])}个样本", file=sys.stderr)
         
         # 展示变异位点结果
         self._display_mutation_results(result)

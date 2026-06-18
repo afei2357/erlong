@@ -3,6 +3,7 @@
 
 import sqlite3
 import json
+import sys
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -11,14 +12,17 @@ import hashlib
 from config import DATABASE_CONFIG, DEFAULT_USERS
 
 
+# 数据库操作异常 - 所有数据库错误都抛这个
 class DatabaseError(Exception):
     pass
 
 
+# 重复记录异常 - 插入重复数据时用
 class DuplicateRecordError(DatabaseError):
     pass
 
 
+# 记录不存在异常 - 查询不到数据时用
 class RecordNotFoundError(DatabaseError):
     pass
 
@@ -28,27 +32,52 @@ class DatabaseManager:
         self.db_path = db_path or DATABASE_CONFIG["path"]
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.connection = None
+        self._debug_mode = True  # 调试模式，控制是否打印SQL语句
+        
+        # 临时记录执行的查询次数，方便排查性能问题
+        self._query_count = 0
+        self._last_query_time = None
+        
         self.connect()
         self.init_database()
         
     def connect(self):
         try:
+            print(f"[DEBUG] 连接数据库: {self.db_path}", file=sys.stderr)
+            
             self.connection = sqlite3.connect(str(self.db_path))
             self.connection.row_factory = sqlite3.Row
+            
+            print(f"[DEBUG] 数据库连接成功", file=sys.stderr)
         except sqlite3.Error as e:
+            print(f"[ERROR] 数据库连接失败: {str(e)}", file=sys.stderr)
             raise DatabaseError(f"数据库连接失败: {str(e)}")
         
     def close(self):
         if self.connection:
+            print(f"[DEBUG] 关闭数据库连接", file=sys.stderr)
             self.connection.close()
             
     def execute_query(self, query: str, params: tuple = None) -> sqlite3.Cursor:
+        # 记录查询次数
+        self._query_count += 1
+        
+        # 调试模式下打印SQL语句
+        if self._debug_mode:
+            print(f"[SQL] {query}", file=sys.stderr)
+            if params:
+                print(f"[SQL] 参数: {params}", file=sys.stderr)
+        
         cursor = self.connection.cursor()
-        if params:
-            cursor.execute(query, params)
-        else:
-            cursor.execute(query)
-        return cursor
+        try:
+            if params:
+                cursor.execute(query, params)
+            else:
+                cursor.execute(query)
+            return cursor
+        except sqlite3.Error as e:
+            print(f"[ERROR] SQL执行失败: {str(e)}", file=sys.stderr)
+            raise DatabaseError(f"SQL执行失败: {str(e)}")
         
     def fetch_one(self, query: str, params: tuple = None) -> Optional[Dict]:
         cursor = self.execute_query(query, params)
@@ -57,7 +86,13 @@ class DatabaseManager:
         
     def fetch_all(self, query: str, params: tuple = None) -> List[Dict]:
         cursor = self.execute_query(query, params)
-        return [dict(row) for row in cursor.fetchall()]
+        results = [dict(row) for row in cursor.fetchall()]
+        
+        # 调试模式下打印结果数量
+        if self._debug_mode:
+            print(f"[DEBUG] 查询结果: {len(results)}条", file=sys.stderr)
+        
+        return results
         
     def commit(self):
         self.connection.commit()
@@ -66,6 +101,8 @@ class DatabaseManager:
         self.connection.rollback()
         
     def init_database(self):
+        print(f"[DEBUG] 初始化数据库表...", file=sys.stderr)
+        
         self._create_users_table()
         self._create_samples_table()
         self._create_gene_data_table()
@@ -74,6 +111,8 @@ class DatabaseManager:
         
         self.commit()
         self.init_default_users()
+        
+        print(f"[DEBUG] 数据库初始化完成", file=sys.stderr)
     
     def _create_users_table(self):
         self.execute_query("""
@@ -158,16 +197,23 @@ class DatabaseManager:
         """)
         
     def init_default_users(self):
+        # 初始化默认用户，如果不存在的话
+        print(f"[DEBUG] 检查默认用户...", file=sys.stderr)
+        
         for user in DEFAULT_USERS:
             if not self.get_user_by_username(user["username"]):
+                print(f"[DEBUG] 创建默认用户: {user['username']}", file=sys.stderr)
                 self.create_user(
                     username=user["username"],
                     password=user["password"],
                     role=user["role"],
                     real_name=user["real_name"]
                 )
+            else:
+                print(f"[DEBUG] 用户已存在: {user['username']}", file=sys.stderr)
     
     def hash_password(self, password: str) -> str:
+        # 密码哈希，用SHA256，虽然简单但够用了
         return hashlib.sha256(password.encode()).hexdigest()
     
     def create_user(self, username: str, password: str, role: str, real_name: str = None) -> int:
@@ -192,13 +238,16 @@ class DatabaseManager:
     
     def verify_user(self, username: str, password: str) -> Optional[Dict]:
         user = self.get_user_by_username(username)
+        
         if user and user["password"] == self.hash_password(password):
+            # 登录成功，更新最后登录时间
             self.execute_query(
                 "UPDATE users SET last_login = ? WHERE id = ?",
                 (datetime.now().isoformat(), user["id"])
             )
             self.commit()
             return user
+        
         return None
     
     def create_sample(self, sample_data: Dict) -> int:
@@ -336,3 +385,6 @@ class DatabaseManager:
 
 # 全局数据库实例
 db = DatabaseManager()
+
+# 方便调试时查看查询次数
+print(f"[DEBUG] 数据库初始化完成，查询次数: {db._query_count}", file=sys.stderr)

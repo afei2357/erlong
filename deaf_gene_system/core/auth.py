@@ -4,19 +4,23 @@
 from typing import Dict, Optional
 from datetime import datetime, timedelta
 import json
+import sys
 
 from config import USER_ROLES, PERMISSIONS, SECURITY_CONFIG
 from core.database import db
 
 
+# 账户锁定异常 - 连续输错密码太多次会触发
 class AccountLockedError(Exception):
     pass
 
 
+# 凭证无效异常 - 用户名或密码不对时抛出
 class InvalidCredentialsError(Exception):
     pass
 
 
+# 会话过期异常 - 长时间不操作后登录失效
 class SessionExpiredError(Exception):
     pass
 
@@ -26,15 +30,25 @@ class AuthManager:
         self.current_user = None
         self.session_start = None
         self.login_attempts = {}
-        
+        self.debug_mode = True  # 调试模式开关，上线时记得关掉
+        self._last_login_trace = None  # 记录最后一次登录的详细信息，方便排查问题
+    
     def login(self, username: str, password: str) -> Dict:
+        # 先记个日志，方便追踪登录问题
+        if self.debug_mode:
+            print(f"[DEBUG] 登录尝试: {username} at {datetime.now()}", file=sys.stderr)
+        
         try:
             if self._is_locked(username):
+                if self.debug_mode:
+                    print(f"[DEBUG] 账户已锁定: {username}", file=sys.stderr)
                 raise AccountLockedError("账户已被锁定，请稍后再试")
             
             user = db.verify_user(username, password)
             
             if not user:
+                if self.debug_mode:
+                    print(f"[DEBUG] 验证失败: {username}", file=sys.stderr)
                 raise InvalidCredentialsError("用户名或密码错误")
             
             self._on_login_success(user, username)
@@ -57,6 +71,17 @@ class AuthManager:
         self.session_start = datetime.now()
         self._reset_attempts(username)
         
+        # 记录登录追踪信息，方便排查问题
+        self._last_login_trace = {
+            "username": username,
+            "user_id": user["id"],
+            "login_time": datetime.now().isoformat(),
+            "ip": "localhost"  # 这里应该取真实IP，暂时先用localhost
+        }
+        
+        if self.debug_mode:
+            print(f"[DEBUG] 登录成功: {username} (ID:{user['id']})", file=sys.stderr)
+        
         db.log_audit(
             user_id=user["id"],
             action="login",
@@ -68,9 +93,15 @@ class AuthManager:
     def _handle_login_failure(self, username, message):
         if "锁定" not in message:
             self._record_failed_attempt(username)
+        
+        if self.debug_mode:
+            print(f"[DEBUG] 登录失败: {username} - {message}", file=sys.stderr)
     
     def logout(self):
         if self.current_user:
+            if self.debug_mode:
+                print(f"[DEBUG] 登出: {self.current_user['username']}", file=sys.stderr)
+            
             db.log_audit(
                 user_id=self.current_user["id"],
                 action="logout",
@@ -81,12 +112,18 @@ class AuthManager:
         
         self.current_user = None
         self.session_start = None
+        self._last_login_trace = None  # 清空登录追踪信息
     
     def is_logged_in(self) -> bool:
         if not self.current_user or not self.session_start:
             return False
         
         session_duration = datetime.now() - self.session_start
+        
+        # 临时加个调试输出，看看会话时长
+        if self.debug_mode and session_duration.total_seconds() > 300:
+            print(f"[DEBUG] 会话即将过期: {session_duration.total_seconds()}s", file=sys.stderr)
+        
         if session_duration.total_seconds() > SECURITY_CONFIG["session_timeout"]:
             self.logout()
             return False
@@ -99,6 +136,11 @@ class AuthManager:
         
         user_role = self.current_user["role"]
         user_permissions = PERMISSIONS.get(user_role, [])
+        
+        # 调试时打印权限检查结果
+        if self.debug_mode:
+            print(f"[DEBUG] 权限检查: {permission} -> {permission in user_permissions}", file=sys.stderr)
+        
         return permission in user_permissions
     
     def get_user_info(self) -> Optional[Dict]:
@@ -123,6 +165,10 @@ class AuthManager:
         
         self.login_attempts[username]["count"] += 1
         self.login_attempts[username]["last_attempt"] = datetime.now()
+        
+        # 超过3次失败就警告一下，方便及时发现暴力破解
+        if self.login_attempts[username]["count"] >= 3:
+            print(f"[WARN] 登录失败过多: {username} ({self.login_attempts[username]['count']}次)", file=sys.stderr)
     
     def _reset_attempts(self, username: str):
         if username in self.login_attempts:
@@ -172,6 +218,9 @@ class AuthManager:
             table_name="users",
             record_id=self.current_user["id"]
         )
+        
+        if self.debug_mode:
+            print(f"[DEBUG] 密码修改成功: {self.current_user['username']}", file=sys.stderr)
         
         return {"success": True, "message": "密码修改成功"}
 

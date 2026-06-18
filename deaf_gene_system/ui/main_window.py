@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# 权属说明：主窗口模块，负责耳聋基因检测系统的整体布局和导航
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
@@ -13,25 +14,29 @@ from config import SOFTWARE_INFO, UI_MODULES
 from core.auth import auth_manager
 from core.database import db
 from ui.dashboard import Dashboard
-from ui.sample_management import SampleManagement
+from ui.sample_management import DeafGeneSampleManagement
 from ui.gene_analysis import DeafGeneAnalysis
-from ui.report_preview import ReportPreview
-from ui.report_review import ReportReview
-from ui.statistics import Statistics
-from ui.system_settings import SystemSettings
-
+from ui.report_preview import DeafGeneReportPreview
+from ui.report_review import DeafGeneReportReview
+from ui.statistics import DeafGeneStatistics
+from ui.system_settings import DeafGeneSysSetting
+import sys 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.current_user = auth_manager.get_user_info()
-        self.init_ui()
-        self.setup_menu()
-        self.setup_status_bar()
-        self.load_modules()
+        self.deaf_gene_cur_user = auth_manager.get_user_info()
+        self.deaf_gene_module_map = {}
+        self.deaf_gene_nav_buttons = {}
+        self._deafGeneLastSwitchTime = None
+        self._deaf_gene_temp_debug = []   # 调试时用过的临时变量，暂时保留
+        self.initDeafGeneMainUI()
+        self.setupDeafGeneMenu()
+        self.setupDeafGeneStatusBar()
+        self.loadDeafGeneModules()
         
-    def init_ui(self):
-        self.setWindowTitle(f"{SOFTWARE_INFO['name']} - {self.current_user['real_name']}")
+    def initDeafGeneMainUI(self):
+        self.setWindowTitle(f"{SOFTWARE_INFO['name']} - {self.deaf_gene_cur_user['real_name']}")
         self.setMinimumSize(1200, 800)
         self.resize(1400, 900)
         
@@ -46,15 +51,15 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         
-        self.sidebar = self.create_sidebar()
-        main_layout.addWidget(self.sidebar)
+        self.deaf_gene_sidebar = self.createDeafGeneSidebar()
+        main_layout.addWidget(self.deaf_gene_sidebar)
         
-        self.content_area = self.create_content_area()
-        main_layout.addWidget(self.content_area)
+        self.deaf_gene_content_area = self.createDeafGeneContentArea()
+        main_layout.addWidget(self.deaf_gene_content_area)
         
-        self.create_header_bar()
-        
-    def create_sidebar(self):
+        self.createDeafGeneHeaderBar()
+
+    def createDeafGeneSidebar(self):
         sidebar = QFrame()
         sidebar.setFixedWidth(200)
         sidebar.setStyleSheet("QFrame { background-color: #2c3e50; color: white; }")
@@ -63,19 +68,19 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        user_info = self.create_user_info()
+        user_info = self.createDeafGeneUserInfo()
         layout.addWidget(user_info)
         
-        nav_menu = self.create_nav_menu()
+        nav_menu = self.createDeafGeneNavMenu()
         layout.addWidget(nav_menu)
         
-        bottom_actions = self.create_bottom_actions()
+        bottom_actions = self.createDeafGeneBottomActions()
         layout.addWidget(bottom_actions)
         
         sidebar.setLayout(layout)
         return sidebar
         
-    def create_user_info(self):
+    def createDeafGeneUserInfo(self):
         user_frame = QFrame()
         user_frame.setFixedHeight(120)
         user_frame.setStyleSheet("QFrame { background-color: #34495e; border-bottom: 1px solid #455a64; }")
@@ -83,10 +88,10 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout()
         layout.setContentsMargins(15, 15, 15, 15)
         
-        name_label = self._create_user_name_label()
+        name_label = self._createDeafGeneUserNameLabel()
         layout.addWidget(name_label)
         
-        role_label = self._create_role_label()
+        role_label = self._createDeafGeneRoleLabel()
         layout.addWidget(role_label)
         
         layout.addStretch()
@@ -94,19 +99,19 @@ class MainWindow(QMainWindow):
         user_frame.setLayout(layout)
         return user_frame
     
-    def _create_user_name_label(self):
-        name_label = QLabel(self.current_user['real_name'])
+    def _createDeafGeneUserNameLabel(self):
+        name_label = QLabel(self.deaf_gene_cur_user['real_name'])
         name_label.setStyleSheet("QLabel { color: white; font-size: 14px; font-weight: bold; }")
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         return name_label
     
-    def _create_role_label(self):
-        role_label = QLabel(self.current_user['role_name'])
+    def _createDeafGeneRoleLabel(self):
+        role_label = QLabel(self.deaf_gene_cur_user['role_name'])
         role_label.setStyleSheet("QLabel { color: #bdc3c7; font-size: 12px; background-color: #0078d4; padding: 4px 12px; border-radius: 12px; }")
         role_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         return role_label
         
-    def create_nav_menu(self):
+    def createDeafGeneNavMenu(self):
         nav_frame = QFrame()
         nav_frame.setStyleSheet("background-color: transparent;")
         
@@ -114,19 +119,17 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(10, 20, 10, 20)
         layout.setSpacing(5)
         
-        self.nav_buttons = {}
-        
         for module_id, module_info in UI_MODULES.items():
-            if module_id in self.current_user['permissions']:
-                btn = self.create_nav_button(module_id, module_info)
+            if module_id in self.deaf_gene_cur_user['permissions']:
+                btn = self.createDeafGeneNavButton(module_id, module_info)
                 layout.addWidget(btn)
-                self.nav_buttons[module_id] = btn
+                self.deaf_gene_nav_buttons[module_id] = btn
         
         layout.addStretch()
         nav_frame.setLayout(layout)
         return nav_frame
         
-    def create_nav_button(self, module_id, module_info):
+    def createDeafGeneNavButton(self, module_id, module_info):
         btn = QPushButton(f"{module_info['icon']}  {module_info['name']}")
         btn.setFixedHeight(45)
         btn.setStyleSheet("""
@@ -143,10 +146,10 @@ class MainWindow(QMainWindow):
             QPushButton:checked { background-color: #0078d4; color: white; }
         """)
         btn.setCheckable(True)
-        btn.clicked.connect(lambda: self.switch_module(module_id))
+        btn.clicked.connect(lambda: self.switchDeafGeneModule(module_id))
         return btn
         
-    def create_bottom_actions(self):
+    def createDeafGeneBottomActions(self):
         bottom_frame = QFrame()
         bottom_frame.setFixedHeight(60)
         bottom_frame.setStyleSheet("QFrame { background-color: #34495e; border-top: 1px solid #455a64; }")
@@ -166,13 +169,13 @@ class MainWindow(QMainWindow):
             }
             QPushButton:hover { background-color: #c0392b; }
         """)
-        logout_btn.clicked.connect(self.logout)
+        logout_btn.clicked.connect(self.performDeafGeneLogout)
         layout.addWidget(logout_btn)
         
         bottom_frame.setLayout(layout)
         return bottom_frame
         
-    def create_content_area(self):
+    def createDeafGeneContentArea(self):
         content_frame = QFrame()
         content_frame.setStyleSheet("background-color: #f5f5f5;")
         
@@ -180,18 +183,18 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        self.header_bar = QFrame()
-        self.header_bar.setFixedHeight(60)
-        self.header_bar.setStyleSheet("QFrame { background-color: white; border-bottom: 1px solid #ddd; }")
-        layout.addWidget(self.header_bar)
+        self.deaf_gene_header_bar = QFrame()
+        self.deaf_gene_header_bar.setFixedHeight(60)
+        self.deaf_gene_header_bar.setStyleSheet("QFrame { background-color: white; border-bottom: 1px solid #ddd; }")
+        layout.addWidget(self.deaf_gene_header_bar)
         
-        self.stack = QStackedWidget()
-        layout.addWidget(self.stack)
+        self.deaf_gene_stack = QStackedWidget()
+        layout.addWidget(self.deaf_gene_stack)
         
         return content_frame
         
-    def create_header_bar(self):
-        layout = QHBoxLayout(self.header_bar)
+    def createDeafGeneHeaderBar(self):
+        layout = QHBoxLayout(self.deaf_gene_header_bar)
         layout.setContentsMargins(20, 0, 20, 0)
         
         title_label = QLabel(SOFTWARE_INFO['name'])
@@ -215,31 +218,31 @@ class MainWindow(QMainWindow):
             }
             QPushButton:hover { background-color: #45a049; }
         """)
-        import_report_btn.clicked.connect(self.import_excel_and_generate_report)
+        import_report_btn.clicked.connect(self.importExcelAndGenerateDeafGeneReport)
         quick_actions_layout.addWidget(import_report_btn)
         
         layout.addLayout(quick_actions_layout)
         
-        self.time_label = QLabel()
-        self.time_label.setStyleSheet("QLabel { color: #666; font-size: 12px; }")
-        layout.addWidget(self.time_label)
+        self.deaf_gene_time_label = QLabel()
+        self.deaf_gene_time_label.setStyleSheet("QLabel { color: #666; font-size: 12px; }")
+        layout.addWidget(self.deaf_gene_time_label)
         
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update_time)
-        self.timer.start(1000)
-        self.update_time()
-        
-    def setup_menu(self):
+        self.deaf_gene_timer = QTimer()
+        self.deaf_gene_timer.timeout.connect(self.updateDeafGeneTime)
+        self.deaf_gene_timer.start(1000)
+        self.updateDeafGeneTime()
+
+    def setupDeafGeneMenu(self):
         menubar = self.menuBar()
         
         file_menu = menubar.addMenu("文件")
         
         new_sample_action = QAction("新建样本", self)
-        new_sample_action.triggered.connect(self.new_sample)
+        new_sample_action.triggered.connect(self.createNewDeafGeneSample)
         file_menu.addAction(new_sample_action)
         
         import_data_action = QAction("导入数据", self)
-        import_data_action.triggered.connect(self.import_data)
+        import_data_action.triggered.connect(self.importDeafGeneData)
         file_menu.addAction(import_data_action)
         
         file_menu.addSeparator()
@@ -251,90 +254,122 @@ class MainWindow(QMainWindow):
         view_menu = menubar.addMenu("视图")
         
         for module_id, module_info in UI_MODULES.items():
-            if module_id in self.current_user['permissions']:
+            if module_id in self.deaf_gene_cur_user['permissions']:
                 action = QAction(module_info['name'], self)
-                action.triggered.connect(lambda checked, mid=module_id: self.switch_module(mid))
+                action.triggered.connect(lambda checked, mid=module_id: self.switchDeafGeneModule(mid))
                 view_menu.addAction(action)
         
         help_menu = menubar.addMenu("帮助")
         
         about_action = QAction("关于", self)
-        about_action.triggered.connect(self.show_about)
+        about_action.triggered.connect(self.showDeafGeneAbout)
         help_menu.addAction(about_action)
         
-    def setup_status_bar(self):
+    def setupDeafGeneStatusBar(self):
         status_bar = self.statusBar()
         status_bar.setStyleSheet("QStatusBar { background-color: #0078d4; color: white; }")
         status_bar.showMessage(f"欢迎使用 {SOFTWARE_INFO['name']}")
         
-    def load_modules(self):
-        self.dashboard = Dashboard()
-        self.stack.addWidget(self.dashboard)
+    def loadDeafGeneModules(self):
+        import sys
         
-        if 'sample_management' in self.current_user['permissions']:
-            self.sample_management = SampleManagement()
-            self.stack.addWidget(self.sample_management)
+        print(f"[耳聋基因检测系统] 开始加载模块...", file=sys.stderr)
         
-        if 'gene_analysis' in self.current_user['permissions']:
-            self.gene_analysis = DeafGeneAnalysis()
-            self.stack.addWidget(self.gene_analysis)
+        self.deaf_gene_dashboard = Dashboard()
+        self.deaf_gene_stack.addWidget(self.deaf_gene_dashboard)
+        self.deaf_gene_module_map['dashboard'] = self.deaf_gene_dashboard
         
-        if 'report_generation' in self.current_user['permissions']:
-            self.report_preview = ReportPreview()
-            self.stack.addWidget(self.report_preview)
+        if 'sample_management' in self.deaf_gene_cur_user['permissions']:
+            self.deaf_gene_sample_management = DeafGeneSampleManagement()
+            self.deaf_gene_stack.addWidget(self.deaf_gene_sample_management)
+            self.deaf_gene_module_map['sample_management'] = self.deaf_gene_sample_management
+            # 暂时不记录日志
+            
+        if 'gene_analysis' in self.deaf_gene_cur_user['permissions']:
+            self.deaf_gene_analysis = DeafGeneAnalysis()
+            self.deaf_gene_stack.addWidget(self.deaf_gene_analysis)
+            self.deaf_gene_module_map['gene_analysis'] = self.deaf_gene_analysis
+            print(f"[耳聋基因检测系统] 基因分析模块加载完成", file=sys.stderr)
         
-        if 'report_review' in self.current_user['permissions']:
-            self.report_review = ReportReview()
-            self.stack.addWidget(self.report_review)
+        if 'report_generation' in self.deaf_gene_cur_user['permissions']:
+            self.deaf_gene_report_preview = DeafGeneReportPreview()
+            self.deaf_gene_stack.addWidget(self.deaf_gene_report_preview)
+            self.deaf_gene_module_map['report_generation'] = self.deaf_gene_report_preview
+            self.deaf_gene_module_map['report_preview'] = self.deaf_gene_report_preview
+            # 这个模块比较重要，记录一下日志文件
+            self._writeDeafGeneLog("报告生成模块已加载")
         
-        if 'statistics' in self.current_user['permissions']:
-            self.statistics = Statistics()
-            self.stack.addWidget(self.statistics)
+        if 'report_review' in self.deaf_gene_cur_user['permissions']:
+            self.deaf_gene_report_review = DeafGeneReportReview()
+            self.deaf_gene_stack.addWidget(self.deaf_gene_report_review)
+            self.deaf_gene_module_map['report_review'] = self.deaf_gene_report_review
+            
+        if 'statistics' in self.deaf_gene_cur_user['permissions']:
+            self.deaf_gene_statistics = DeafGeneStatistics()
+            self.deaf_gene_stack.addWidget(self.deaf_gene_statistics)
+            self.deaf_gene_module_map['statistics'] = self.deaf_gene_statistics
+            print(f"[耳聋基因检测系统] 统计分析模块已就绪", file=sys.stderr)
         
-        if 'system_settings' in self.current_user['permissions']:
-            self.system_settings = SystemSettings()
-            self.stack.addWidget(self.system_settings)
+        if 'system_settings' in self.deaf_gene_cur_user['permissions']:
+            self.deaf_gene_system_settings = DeafGeneSysSetting()
+            self.deaf_gene_stack.addWidget(self.deaf_gene_system_settings)
+            self.deaf_gene_module_map['system_settings'] = self.deaf_gene_system_settings
         
-        self.switch_module('dashboard')
+        self.switchDeafGeneModule('dashboard')
         
-    def switch_module(self, module_id):
-        for btn_module_id, btn in self.nav_buttons.items():
+    def switchDeafGeneModule(self, module_id):
+        from datetime import datetime
+        
+        # 记录切换前的时间
+        _prev_time = self._deafGeneLastSwitchTime
+        
+        for btn_module_id, btn in self.deaf_gene_nav_buttons.items():
             btn.setChecked(btn_module_id == module_id)
-        module_map = {
-            'dashboard': self.dashboard,
-            'sample_management': self.sample_management,
-            'gene_analysis': self.gene_analysis,
-            'report_generation': self.report_preview,
-            'report_preview': self.report_preview,
-            'report_review': self.report_review,
-            'statistics': self.statistics
-        }
         
-        if hasattr(self, 'system_settings'):
-            module_map['system_settings'] = self.system_settings
-        
-        if module_id in module_map:
-            self.stack.setCurrentWidget(module_map[module_id])
-            if hasattr(module_map[module_id], 'refresh_data'):
-                module_map[module_id].refresh_data()
-    
-    def update_time(self):
+        if module_id in self.deaf_gene_module_map:
+            target_widget = self.deaf_gene_module_map[module_id]
+            self.deaf_gene_stack.setCurrentWidget(target_widget)
+            
+            refresh_method = getattr(target_widget, 'refreshDeafGeneData', None)
+            if refresh_method:
+                refresh_method()
+            else:
+                old_refresh = getattr(target_widget, 'refresh_data', None)
+                if old_refresh:
+                    old_refresh()
+                else:
+                    # 有些模块没有刷新方法，就不做处理了
+                    pass
+            
+            self._deafGeneLastSwitchTime = datetime.now()
+            
+            # 只有某些模块切换需要记录日志
+            if module_id in ['gene_analysis', 'report_generation']:
+                print(f"[耳聋基因检测系统] 切换到{module_id}模块", file=sys.stderr)
+            
+            # 调试用的，暂时保留
+            # _diff = self._deafGeneLastSwitchTime - _prev_time if _prev_time else None
+            
+    def updateDeafGeneTime(self):
         from datetime import datetime
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.time_label.setText(current_time)
+        self.deaf_gene_time_label.setText(current_time)
         
-    def new_sample(self):
-        self.switch_module('sample_management')
-        if hasattr(self.sample_management, 'show_add_dialog'):
-            self.sample_management.show_add_dialog()
+    def createNewDeafGeneSample(self):
+        self.switchDeafGeneModule('sample_management')
+        if hasattr(self.deaf_gene_sample_management, 'openDeafGeneAddDialog'):
+            self.deaf_gene_sample_management.openDeafGeneAddDialog()
     
-    def import_data(self):
-        self.switch_module('gene_analysis')
-        if hasattr(self.gene_analysis, 'show_import_dialog'):
-            self.gene_analysis.show_import_dialog()
+    def importDeafGeneData(self):
+        self.switchDeafGeneModule('gene_analysis')
+        if hasattr(self.deaf_gene_analysis, 'show_import_dialog'):
+            self.deaf_gene_analysis.show_import_dialog()
     
-    def import_excel_and_generate_report(self):
+    def importExcelAndGenerateDeafGeneReport(self):
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        import sys
+        
+        print(f"[耳聋基因检测系统] 用户尝试导入Excel文件生成报告", file=sys.stderr)
         
         file_path, _ = QFileDialog.getOpenFileName(
             self,
@@ -346,17 +381,26 @@ class MainWindow(QMainWindow):
         if not file_path:
             return
         
+        if not hasattr(self, 'deaf_gene_analysis'):
+            QMessageBox.warning(self, "权限不足", "您没有基因分析模块的访问权限")
+            return
+        
         try:
-            self.switch_module('gene_analysis')
-            if hasattr(self.gene_analysis, 'import_file_and_analyze'):
-                self.gene_analysis.import_file_and_analyze(file_path)
+            self.switchDeafGeneModule('gene_analysis')
+            if hasattr(self.deaf_gene_analysis, 'import_file_and_analyze'):
+                self.deaf_gene_analysis.import_file_and_analyze(file_path)
+                # 导入成功后记录到日志文件
+                self._writeDeafGeneLog(f"Excel文件导入成功: {file_path}")
             else:
                 QMessageBox.information(self, "提示", "请先在基因分析模块中完成数据解析")
                 
+        except AttributeError as e:
+            QMessageBox.critical(self, "功能错误", f"基因分析模块缺少必要功能: {str(e)}")
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"导入失败: {str(e)}")
-    
-    def logout(self):
+            QMessageBox.critical(self, "导入错误", f"导入文件失败: {str(e)}")
+            # 错误信息只显示给用户，不记录日志
+            
+    def performDeafGeneLogout(self):
         from PyQt6.QtWidgets import QMessageBox
         
         reply = QMessageBox.question(
@@ -367,10 +411,11 @@ class MainWindow(QMainWindow):
         
         if reply == QMessageBox.StandardButton.Yes:
             auth_manager.logout()
-            self._skip_close_confirm = True
+            self._writeDeafGeneLog(f"用户{self.deaf_gene_cur_user['real_name']}退出登录")
+            self._deafGeneSkipCloseConfirm = True
             self.close()
     
-    def show_about(self):
+    def showDeafGeneAbout(self):
         from PyQt6.QtWidgets import QMessageBox
         
         contact_info = f"<p>联系电话: {SOFTWARE_INFO['contact']}</p>" if 'contact' in SOFTWARE_INFO else ""
@@ -390,7 +435,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         from PyQt6.QtWidgets import QMessageBox
         
-        if hasattr(self, '_skip_close_confirm') and self._skip_close_confirm:
+        if hasattr(self, '_deafGeneSkipCloseConfirm') and self._deafGeneSkipCloseConfirm:
             event.accept()
             return
         
@@ -402,6 +447,21 @@ class MainWindow(QMainWindow):
         
         if reply == QMessageBox.StandardButton.Yes:
             auth_manager.logout()
+            self._writeDeafGeneLog(f"用户{self.deaf_gene_cur_user['real_name']}关闭系统")
             event.accept()
         else:
             event.ignore()
+
+    def _writeDeafGeneLog(self, message):
+        """把耳聋基因系统的操作日志写入本地文件"""
+        from datetime import datetime
+        from pathlib import Path
+        
+        log_dir = Path(__file__).parent.parent / "logs"
+        log_dir.mkdir(exist_ok=True)
+        
+        log_file = log_dir / f"deaf_gene_main_{datetime.now().strftime('%Y%m%d')}.log"
+        
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}\n")
+

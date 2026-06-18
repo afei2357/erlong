@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# 权属说明：本模块由耳聋基因检测系统开发组维护，仅供内部使用
+
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, 
@@ -16,13 +18,24 @@ from core.auth import auth_manager
 from config import USER_ROLES, PERMISSIONS
 
 
-class SystemSettings(QWidget):
+class DeafGeneSysSettingException(Exception):
+    pass
+
+
+class DeafGeneUserInvalidException(DeafGeneSysSettingException):
+    pass
+
+
+class DeafGeneSysSetting(QWidget):
     def __init__(self):
         super().__init__()
-        self.init_ui()
-        self.load_settings()
-        
-    def init_ui(self):
+        self._cur_tab_idx = 0   # 当前选中的设置标签页
+        self._last_backup_time = None   # 上次备份数据库的时间
+        self._gene_user_table_data = []   # 用户表缓存数据，暂时没用但保留
+        self.initDeafGeneSysUI()
+        self.loadDeafGeneSysSettings()
+
+    def initDeafGeneSysUI(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
@@ -31,8 +44,8 @@ class SystemSettings(QWidget):
         title_label.setStyleSheet("QLabel { color: #333; font-size: 18px; font-weight: bold; }")
         layout.addWidget(title_label)
         
-        self.tab_widget = QTabWidget()
-        self.tab_widget.setStyleSheet("""
+        self.deaf_gene_tab_widget = QTabWidget()
+        self.deaf_gene_tab_widget.setStyleSheet("""
             QTabWidget::pane { border: 1px solid #ddd; background-color: white; border-radius: 8px; }
             QTabBar::tab { background-color: #f0f0f0; padding: 10px 20px; margin-right: 2px;
                 border-top-left-radius: 6px; border-top-right-radius: 6px;
@@ -40,83 +53,81 @@ class SystemSettings(QWidget):
             QTabBar::tab:selected { background-color: white; border-bottom: 3px solid #0078d4; font-weight: bold; }
         """)
         
-        self.user_tab = self.create_user_management_tab()
-        self.tab_widget.addTab(self.user_tab, "用户管理")
+        self.deaf_gene_user_tab = self.createDeafGeneUserTab()
+        self.deaf_gene_tab_widget.addTab(self.deaf_gene_user_tab, "用户管理")
         
-        self.template_tab = self.create_template_management_tab()
-        self.tab_widget.addTab(self.template_tab, "模板管理")
+        self.deaf_gene_template_tab = self.createDeafGeneTemplateTab()
+        self.deaf_gene_tab_widget.addTab(self.deaf_gene_template_tab, "模板管理")
         
-        self.database_tab = self.create_database_maintenance_tab()
-        self.tab_widget.addTab(self.database_tab, "数据库维护")
+        self.deaf_gene_db_tab = self.createDeafGeneDbTab()
+        self.deaf_gene_tab_widget.addTab(self.deaf_gene_db_tab, "数据库维护")
         
-        self.log_tab = self.create_log_view_tab()
-        self.tab_widget.addTab(self.log_tab, "日志查看")
+        self.deaf_gene_log_tab = self.createDeafGeneLogTab()
+        self.deaf_gene_tab_widget.addTab(self.deaf_gene_log_tab, "日志查看")
         
-        layout.addWidget(self.tab_widget)
-        
-    def create_user_management_tab(self):
+        layout.addWidget(self.deaf_gene_tab_widget)
+
+    def createDeafGeneUserTab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         
         action_layout = QHBoxLayout()
         
         add_user_btn = QPushButton("➕ 新增用户")
-        add_user_btn.clicked.connect(self.add_user)
+        add_user_btn.clicked.connect(self.addDeafGeneUser)
         action_layout.addWidget(add_user_btn)
         
         edit_user_btn = QPushButton("✏️ 编辑用户")
-        edit_user_btn.clicked.connect(self.edit_user)
+        edit_user_btn.clicked.connect(self.editDeafGeneUser)
         action_layout.addWidget(edit_user_btn)
         
         delete_user_btn = QPushButton("🗑️ 删除用户")
-        delete_user_btn.clicked.connect(self.delete_user)
+        delete_user_btn.clicked.connect(self.deleteDeafGeneUser)
         action_layout.addWidget(delete_user_btn)
         
         action_layout.addStretch()
-        
         layout.addLayout(action_layout)
         
-        self.user_table = QTableWidget()
-        self.user_table.setStyleSheet("""
+        self.deaf_gene_user_table = QTableWidget()
+        self.deaf_gene_user_table.setStyleSheet("""
             QTableWidget { background-color: white; border-radius: 8px; gridline-color: #eee; color: #333; }
             QTableWidget::item { padding: 8px; color: #333; }
             QTableWidget::item:selected { background-color: #0078d4; color: white; }
         """)
         
         headers = ["用户名", "真实姓名", "角色", "创建时间", "最后登录"]
-        self.user_table.setColumnCount(len(headers))
-        self.user_table.setHorizontalHeaderLabels(headers)
+        self.deaf_gene_user_table.setColumnCount(len(headers))
+        self.deaf_gene_user_table.setHorizontalHeaderLabels(headers)
         
-        self.user_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.user_table.verticalHeader().setDefaultSectionSize(40)
-        self.user_table.verticalHeader().setVisible(False)
-        self.user_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.user_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.deaf_gene_user_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.deaf_gene_user_table.verticalHeader().setDefaultSectionSize(40)
+        self.deaf_gene_user_table.verticalHeader().setVisible(False)
+        self.deaf_gene_user_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.deaf_gene_user_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         
-        layout.addWidget(self.user_table)
-        
+        layout.addWidget(self.deaf_gene_user_table)
         return widget
-        
-    def create_template_management_tab(self):
+
+    def createDeafGeneTemplateTab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         
         template_group = QGroupBox("报告模板配置")
         template_layout = QFormLayout()
         
-        self.hospital_name_input = QLineEdit()
-        self.hospital_name_input.setPlaceholderText("请输入医院名称")
-        template_layout.addRow("医院名称:", self.hospital_name_input)
+        self.deaf_gene_hospital_name_input = QLineEdit()
+        self.deaf_gene_hospital_name_input.setPlaceholderText("请输入医院名称")
+        template_layout.addRow("医院名称:", self.deaf_gene_hospital_name_input)
         
-        self.header_input = QTextEdit()
-        self.header_input.setMaximumHeight(80)
-        self.header_input.setPlaceholderText("请输入报告页眉内容")
-        template_layout.addRow("报告页眉:", self.header_input)
+        self.deaf_gene_header_input = QTextEdit()
+        self.deaf_gene_header_input.setMaximumHeight(80)
+        self.deaf_gene_header_input.setPlaceholderText("请输入报告页眉内容")
+        template_layout.addRow("报告页眉:", self.deaf_gene_header_input)
         
-        self.footer_input = QTextEdit()
-        self.footer_input.setMaximumHeight(80)
-        self.footer_input.setPlaceholderText("请输入报告页脚内容")
-        template_layout.addRow("报告页脚:", self.footer_input)
+        self.deaf_gene_footer_input = QTextEdit()
+        self.deaf_gene_footer_input.setMaximumHeight(80)
+        self.deaf_gene_footer_input.setPlaceholderText("请输入报告页脚内容")
+        template_layout.addRow("报告页脚:", self.deaf_gene_footer_input)
         
         template_group.setLayout(template_layout)
         layout.addWidget(template_group)
@@ -124,44 +135,43 @@ class SystemSettings(QWidget):
         interpretation_group = QGroupBox("解读话术配置")
         interpretation_layout = QVBoxLayout()
         
-        self.normal_interpretation = QTextEdit()
-        self.normal_interpretation.setMaximumHeight(60)
-        self.normal_interpretation.setPlaceholderText("正常结果解读话术")
+        self.deaf_gene_normal_interpretation = QTextEdit()
+        self.deaf_gene_normal_interpretation.setMaximumHeight(60)
+        self.deaf_gene_normal_interpretation.setPlaceholderText("正常结果解读话术")
         interpretation_layout.addWidget(QLabel("正常结果解读:"))
-        interpretation_layout.addWidget(self.normal_interpretation)
+        interpretation_layout.addWidget(self.deaf_gene_normal_interpretation)
         
-        self.abnormal_interpretation = QTextEdit()
-        self.abnormal_interpretation.setMaximumHeight(60)
-        self.abnormal_interpretation.setPlaceholderText("异常结果解读话术")
+        self.deaf_gene_abnormal_interpretation = QTextEdit()
+        self.deaf_gene_abnormal_interpretation.setMaximumHeight(60)
+        self.deaf_gene_abnormal_interpretation.setPlaceholderText("异常结果解读话术")
         interpretation_layout.addWidget(QLabel("异常结果解读:"))
-        interpretation_layout.addWidget(self.abnormal_interpretation)
+        interpretation_layout.addWidget(self.deaf_gene_abnormal_interpretation)
         
         interpretation_group.setLayout(interpretation_layout)
         layout.addWidget(interpretation_group)
         
         save_template_btn = QPushButton("💾 保存模板配置")
-        save_template_btn.clicked.connect(self.save_template_config)
+        save_template_btn.clicked.connect(self.saveDeafGeneTemplateConfig)
         layout.addWidget(save_template_btn)
         
         layout.addStretch()
-        
         return widget
-        
-    def create_database_maintenance_tab(self):
+
+    def createDeafGeneDbTab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         
         info_group = QGroupBox("数据库信息")
         info_layout = QFormLayout()
         
-        self.db_path_label = QLabel()
-        info_layout.addRow("数据库路径:", self.db_path_label)
+        self.deaf_gene_db_path_label = QLabel()
+        info_layout.addRow("数据库路径:", self.deaf_gene_db_path_label)
         
-        self.db_size_label = QLabel()
-        info_layout.addRow("数据库大小:", self.db_size_label)
+        self.deaf_gene_db_size_label = QLabel()
+        info_layout.addRow("数据库大小:", self.deaf_gene_db_size_label)
         
-        self.backup_count_label = QLabel()
-        info_layout.addRow("备份数量:", self.backup_count_label)
+        self.deaf_gene_backup_count_label = QLabel()
+        info_layout.addRow("备份数量:", self.deaf_gene_backup_count_label)
         
         info_group.setLayout(info_layout)
         layout.addWidget(info_group)
@@ -170,165 +180,142 @@ class SystemSettings(QWidget):
         action_layout = QVBoxLayout()
         
         backup_btn = QPushButton("💾 备份数据库")
-        backup_btn.clicked.connect(self.backup_database)
+        backup_btn.clicked.connect(self.backupDeafGeneDb)
         action_layout.addWidget(backup_btn)
         
         restore_btn = QPushButton("📂 还原数据库")
-        restore_btn.clicked.connect(self.restore_database)
+        restore_btn.clicked.connect(self.restoreDeafGeneDb)
         action_layout.addWidget(restore_btn)
         
         cleanup_logs_btn = QPushButton("🧹 清理日志")
-        cleanup_logs_btn.clicked.connect(self.cleanup_logs)
+        cleanup_logs_btn.clicked.connect(self.cleanupDeafGeneLogs)
         action_layout.addWidget(cleanup_logs_btn)
         
         update_knowledge_btn = QPushButton("📚 更新基因知识库")
-        update_knowledge_btn.clicked.connect(self.update_knowledge_base)
+        update_knowledge_btn.clicked.connect(self.updateDeafGeneKnowledgeBase)
         action_layout.addWidget(update_knowledge_btn)
         
         action_group.setLayout(action_layout)
         layout.addWidget(action_group)
         
         layout.addStretch()
-        
         return widget
-        
-    def create_log_view_tab(self):
+
+    def createDeafGeneLogTab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         
         filter_layout = QHBoxLayout()
         
         filter_layout.addWidget(QLabel("日志类型:"))
-        self.log_type_filter = QComboBox()
-        self.log_type_filter.addItem("全部", None)
-        self.log_type_filter.addItem("登录日志", "login")
-        self.log_type_filter.addItem("操作日志", "operation")
-        self.log_type_filter.addItem("审核日志", "review")
-        filter_layout.addWidget(self.log_type_filter)
+        self.deaf_gene_log_type_filter = QComboBox()
+        self.deaf_gene_log_type_filter.addItem("全部", None)
+        self.deaf_gene_log_type_filter.addItem("登录日志", "login")
+        self.deaf_gene_log_type_filter.addItem("操作日志", "operation")
+        self.deaf_gene_log_type_filter.addItem("审核日志", "review")
+        filter_layout.addWidget(self.deaf_gene_log_type_filter)
         
         filter_layout.addWidget(QLabel("时间范围:"))
-        self.log_date_filter = QComboBox()
-        self.log_date_filter.addItem("今天", "today")
-        self.log_date_filter.addItem("最近7天", "week")
-        self.log_date_filter.addItem("最近30天", "month")
-        self.log_date_filter.addItem("全部", "all")
-        filter_layout.addWidget(self.log_date_filter)
+        self.deaf_gene_log_date_filter = QComboBox()
+        self.deaf_gene_log_date_filter.addItem("今天", "today")
+        self.deaf_gene_log_date_filter.addItem("最近7天", "week")
+        self.deaf_gene_log_date_filter.addItem("最近30天", "month")
+        self.deaf_gene_log_date_filter.addItem("全部", "all")
+        filter_layout.addWidget(self.deaf_gene_log_date_filter)
         
         filter_layout.addStretch()
         
         refresh_logs_btn = QPushButton("🔄 刷新")
-        refresh_logs_btn.clicked.connect(self.refresh_logs)
+        refresh_logs_btn.clicked.connect(self.refreshDeafGeneLogs)
         filter_layout.addWidget(refresh_logs_btn)
         
         layout.addLayout(filter_layout)
         
-        self.log_table = QTableWidget()
-        self.log_table.setStyleSheet("""
+        self.deaf_gene_log_table = QTableWidget()
+        self.deaf_gene_log_table.setStyleSheet("""
             QTableWidget { background-color: white; border-radius: 8px; gridline-color: #eee; color: #333; }
             QTableWidget::item { padding: 8px; color: #333; }
             QTableWidget::item:selected { background-color: #0078d4; color: white; }
         """)
         
         headers = ["时间", "用户", "操作类型", "操作描述", "详细信息"]
-        self.log_table.setColumnCount(len(headers))
-        self.log_table.setHorizontalHeaderLabels(headers)
+        self.deaf_gene_log_table.setColumnCount(len(headers))
+        self.deaf_gene_log_table.setHorizontalHeaderLabels(headers)
         
-        self.log_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.log_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.deaf_gene_log_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.deaf_gene_log_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         
-        self.log_table.verticalHeader().setDefaultSectionSize(40)
-        self.log_table.verticalHeader().setVisible(False)
+        self.deaf_gene_log_table.verticalHeader().setDefaultSectionSize(40)
+        self.deaf_gene_log_table.verticalHeader().setVisible(False)
         
-        layout.addWidget(self.log_table)
-        
+        layout.addWidget(self.deaf_gene_log_table)
         return widget
-        
-    def load_settings(self):
-        try:
-            self.load_users()
-            self.load_database_info()
-            self.load_logs()
-            
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"加载设置失败: {str(e)}")
+
+    def loadDeafGeneSysSettings(self):
+        self.loadDeafGeneUsers()
+        self.loadDeafGeneDbInfo()
+        self.loadDeafGeneLogs()
     
-    def load_users(self):
-        try:
-            cursor = db.execute_query("""
-                SELECT id, username, real_name, role, created_at, last_login
-                FROM users
-                ORDER BY created_at DESC
-            """)
-            users = cursor.fetchall()
-            
-            self.user_table.setRowCount(len(users))
-            
-            for row, user in enumerate(users):
-                user_dict = dict(user)
-                self.user_table.setItem(row, 0, QTableWidgetItem(user_dict['username']))
-                self.user_table.setItem(row, 1, QTableWidgetItem(user_dict.get('real_name', '')))
-                
-                role_item = QTableWidgetItem(USER_ROLES.get(user_dict['role'], user_dict['role']))
-                self.set_role_color(role_item, user_dict['role'])
-                self.user_table.setItem(row, 2, role_item)
-                
-                self.user_table.setItem(row, 3, QTableWidgetItem(self.format_datetime(user_dict.get('created_at', ''))))
-                self.user_table.setItem(row, 4, QTableWidgetItem(self.format_datetime(user_dict.get('last_login', ''))))
-                
-        except Exception as e:
-            print(f"加载用户列表失败: {e}")
-    
-    def set_role_color(self, item, role):
-        color_map = {
-            'admin': QColor('#9c27b0'),
-            'doctor': QColor('#0078d4'),
-            'technician': QColor('#4caf50')
-        }
+    def loadDeafGeneUsers(self):
+        cursor = db.execute_query("""
+            SELECT id, username, real_name, role, created_at, last_login
+            FROM users
+            ORDER BY created_at DESC
+        """)
+        users = cursor.fetchall()
         
+        self.deaf_gene_user_table.setRowCount(len(users))
+        
+        for row, user in enumerate(users):
+            user_dict = dict(user)
+            self.deaf_gene_user_table.setItem(row, 0, QTableWidgetItem(user_dict['username']))
+            self.deaf_gene_user_table.setItem(row, 1, QTableWidgetItem(user_dict.get('real_name', '')))
+            
+            role_item = QTableWidgetItem(USER_ROLES.get(user_dict['role'], user_dict['role']))
+            self.colorDeafGeneRoleText(role_item, user_dict['role'])
+            self.deaf_gene_user_table.setItem(row, 2, role_item)
+            
+            self.deaf_gene_user_table.setItem(row, 3, QTableWidgetItem(self.formatDeafGeneDatetime(user_dict.get('created_at', ''))))
+            self.deaf_gene_user_table.setItem(row, 4, QTableWidgetItem(self.formatDeafGeneDatetime(user_dict.get('last_login', ''))))
+    
+    def colorDeafGeneRoleText(self, item, role):
+        color_map = {'admin': QColor('#9c27b0'), 'doctor': QColor('#0078d4'), 'technician': QColor('#4caf50')}
         color = color_map.get(role, QColor('#666'))
         item.setForeground(color)
     
-    def load_database_info(self):
-        try:
-            from pathlib import Path
-            
-            db_path = db.db_path
-            self.db_path_label.setText(str(db_path))
-            
-            if db_path.exists():
-                size_bytes = db_path.stat().st_size
-                size_mb = size_bytes / (1024 * 1024)
-                self.db_size_label.setText(f"{size_mb:.2f} MB")
-            else:
-                self.db_size_label.setText("文件不存在")
-            
-            backup_dir = db.db_path.parent / "backups"
-            if backup_dir.exists():
-                backup_files = list(backup_dir.glob("*.db"))
-                self.backup_count_label.setText(str(len(backup_files)))
-            else:
-                self.backup_count_label.setText("0")
+    def loadDeafGeneDbInfo(self):
+        from pathlib import Path
+        
+        db_path = db.db_path
+        self.deaf_gene_db_path_label.setText(str(db_path))
+        
+        if db_path.exists():
+            size_bytes = db_path.stat().st_size
+            size_mb = size_bytes / (1024 * 1024)
+            self.deaf_gene_db_size_label.setText(f"{size_mb:.2f} MB")
+        else:
+            self.deaf_gene_db_size_label.setText("文件不存在")
+        
+        backup_dir = db.db_path.parent / "backups"
+        if backup_dir.exists():
+            backup_files = list(backup_dir.glob("*.db"))
+            self.deaf_gene_backup_count_label.setText(str(len(backup_files)))
+        else:
+            self.deaf_gene_backup_count_label.setText("0")
                 
-        except Exception as e:
-            print(f"加载数据库信息失败: {e}")
-    
-    def load_logs(self):
-        try:
-            log_type = self.log_type_filter.currentData()
-            date_range = self.log_date_filter.currentData()
-            
-            conditions = self._build_log_conditions(log_type, date_range)
-            query = self._build_log_query(conditions)
-            
-            cursor = db.execute_query(query, ())
-            logs = cursor.fetchall()
-            
-            self._populate_log_table(logs)
+    def loadDeafGeneLogs(self):
+        log_type = self.deaf_gene_log_type_filter.currentData()
+        date_range = self.deaf_gene_log_date_filter.currentData()
+        
+        conditions = self._buildDeafGeneLogConditions(log_type, date_range)
+        query = self._buildDeafGeneLogQuery(conditions)
+        
+        cursor = db.execute_query(query, ())
+        logs = cursor.fetchall()
+        
+        self._populateDeafGeneLogTable(logs)
                 
-        except Exception as e:
-            print(f"加载日志失败: {e}")
-    
-    def _build_log_conditions(self, log_type, date_range):
+    def _buildDeafGeneLogConditions(self, log_type, date_range):
         conditions = []
         
         if log_type:
@@ -349,105 +336,91 @@ class SystemSettings(QWidget):
         
         return conditions
     
-    def _build_log_query(self, conditions):
-        query = """
-            SELECT al.*, u.real_name, u.username
-            FROM audit_logs al
-            LEFT JOIN users u ON al.user_id = u.id
-        """
-        
+    def _buildDeafGeneLogQuery(self, conditions):
+        query = "SELECT al.*, u.real_name, u.username FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id"
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
-        
         query += " ORDER BY al.created_at DESC LIMIT 100"
         return query
     
-    def _populate_log_table(self, logs):
-        self.log_table.setRowCount(len(logs))
+    def _populateDeafGeneLogTable(self, logs):
+        import sys
+        print(f"[耳聋基因系统] 加载日志记录: {len(logs)}条", file=sys.stderr)
+        
+        self.deaf_gene_log_table.setRowCount(len(logs))
         
         for row, log in enumerate(logs):
             log_dict = dict(log)
-            self.log_table.setItem(row, 0, QTableWidgetItem(self.format_datetime(log_dict.get('created_at', ''))))
-            self.log_table.setItem(row, 1, QTableWidgetItem(log_dict.get('real_name') or log_dict.get('username', '')))
-            self.log_table.setItem(row, 2, QTableWidgetItem(log_dict.get('action', '')))
-            self.log_table.setItem(row, 3, QTableWidgetItem(f"{log_dict.get('table_name', '')} {log_dict.get('action', '')}"))
+            self.deaf_gene_log_table.setItem(row, 0, QTableWidgetItem(self.formatDeafGeneDatetime(log_dict.get('created_at', ''))))
+            self.deaf_gene_log_table.setItem(row, 1, QTableWidgetItem(log_dict.get('real_name') or log_dict.get('username', '')))
+            self.deaf_gene_log_table.setItem(row, 2, QTableWidgetItem(log_dict.get('action', '')))
+            self.deaf_gene_log_table.setItem(row, 3, QTableWidgetItem(f"{log_dict.get('table_name', '')} {log_dict.get('action', '')}"))
             
             new_vals = log_dict.get('new_values', '')
             display_vals = new_vals[:50] + '...' if len(new_vals) > 50 else new_vals
-            self.log_table.setItem(row, 4, QTableWidgetItem(display_vals))
-    
-    def add_user(self):
-        dialog = UserDialog(self)
+            self.deaf_gene_log_table.setItem(row, 4, QTableWidgetItem(display_vals))
+
+    def addDeafGeneUser(self):
+        dialog = DeafGeneUserDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            user_data = dialog.get_user_data()
+            user_data = dialog.getDeafGeneUserData()
+            
+            username = user_data.get('username')
+            password = user_data.get('password')
+            
+            if not username or not password:
+                QMessageBox.warning(self, "输入错误", "用户名和密码不能为空")
+                return
             
             try:
-                self._create_user_safe(user_data)
-                QMessageBox.information(self, "成功", "用户添加成功")
-                self.load_users()
+                db.create_user(username=username, password=password, role=user_data['role'], real_name=user_data['real_name'])
                 
-            except ValueError as ve:
-                QMessageBox.warning(self, "输入错误", str(ve))
+                # 记录到本地日志文件
+                self._logDeafGeneOperation(f"新增用户: {username}")
+                
+                QMessageBox.information(self, "成功", "用户添加成功")
+                self.loadDeafGeneUsers()
+                
             except Exception as e:
-                QMessageBox.critical(self, "错误", f"添加用户失败: {str(e)}")
-    
-    def _create_user_safe(self, user_data):
-        if not user_data.get('username') or not user_data.get('password'):
-            raise ValueError("用户名和密码不能为空")
-        
-        db.create_user(
-            username=user_data['username'],
-            password=user_data['password'],
-            role=user_data['role'],
-            real_name=user_data['real_name']
-        )
-    
-    def edit_user(self):
-        current_row = self.user_table.currentRow()
+                QMessageBox.critical(self, "添加错误", f"添加用户失败: {str(e)}")
+
+    def editDeafGeneUser(self):
+        current_row = self.deaf_gene_user_table.currentRow()
         if current_row < 0:
             QMessageBox.warning(self, "提示", "请先选择要编辑的用户")
             return
         
-        username = self.user_table.item(current_row, 0).text()
-        
+        username = self.deaf_gene_user_table.item(current_row, 0).text()
         user = db.get_user_by_username(username)
         
         if user:
-            dialog = UserDialog(self, user)
+            dialog = DeafGeneUserDialog(self, user)
             if dialog.exec() == QDialog.DialogCode.Accepted:
-                user_data = dialog.get_user_data()
+                user_data = dialog.getDeafGeneUserData()
                 
                 try:
-                    # 更新用户信息
                     if user_data.get('password'):
                         hashed_password = db.hash_password(user_data['password'])
-                        db.execute_query(
-                            "UPDATE users SET password = ? WHERE id = ?",
-                            (hashed_password, user['id'])
-                        )
+                        db.execute_query("UPDATE users SET password = ? WHERE id = ?", (hashed_password, user['id']))
                     
-                    db.execute_query(
-                        "UPDATE users SET real_name = ?, role = ? WHERE id = ?",
-                        (user_data['real_name'], user_data['role'], user['id'])
-                    )
+                    db.execute_query("UPDATE users SET real_name = ?, role = ? WHERE id = ?",
+                        (user_data['real_name'], user_data['role'], user['id']))
                     db.commit()
                     
                     QMessageBox.information(self, "成功", "用户信息更新成功")
-                    self.load_users()
+                    self.loadDeafGeneUsers()
                     
                 except Exception as e:
-                    QMessageBox.critical(self, "错误", f"更新用户失败: {str(e)}")
-    
-    def delete_user(self):
-        """删除用户"""
-        current_row = self.user_table.currentRow()
+                    QMessageBox.critical(self, "更新错误", f"更新用户失败: {str(e)}")
+
+    def deleteDeafGeneUser(self):
+        current_row = self.deaf_gene_user_table.currentRow()
         if current_row < 0:
             QMessageBox.warning(self, "提示", "请先选择要删除的用户")
             return
         
-        username = self.user_table.item(current_row, 0).text()
+        username = self.deaf_gene_user_table.item(current_row, 0).text()
         
-        # 不能删除当前登录用户
         if username == auth_manager.current_user['username']:
             QMessageBox.warning(self, "提示", "不能删除当前登录用户")
             return
@@ -463,144 +436,133 @@ class SystemSettings(QWidget):
                 db.execute_query("DELETE FROM users WHERE username = ?", (username,))
                 db.commit()
                 
+                self._logDeafGeneOperation(f"删除用户: {username}")
+                
                 QMessageBox.information(self, "成功", "用户删除成功")
-                self.load_users()
+                self.loadDeafGeneUsers()
                 
             except Exception as e:
-                QMessageBox.critical(self, "错误", f"删除用户失败: {str(e)}")
-    
-    def save_template_config(self):
-        """保存模板配置"""
+                QMessageBox.critical(self, "删除错误", f"删除用户失败: {str(e)}")
+
+    def saveDeafGeneTemplateConfig(self):
         QMessageBox.information(self, "提示", "模板配置保存功能开发中...")
-    
-    def backup_database(self):
-        """备份数据库"""
-        try:
-            from pathlib import Path
-            import shutil
-            from datetime import datetime
-            
-            # 创建备份目录
-            backup_dir = db.db_path.parent / "backups"
-            backup_dir.mkdir(exist_ok=True)
-            
-            # 生成备份文件名
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_file = backup_dir / f"backup_{timestamp}.db"
-            
-            # 复制数据库文件
-            shutil.copy2(db.db_path, backup_file)
-            
-            QMessageBox.information(self, "成功", f"数据库备份成功：{backup_file.name}")
-            self.load_database_info()
-            
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"备份失败: {str(e)}")
-    
-    def restore_database(self):
-        """还原数据库"""
+
+    def backupDeafGeneDb(self):
+        from pathlib import Path
+        import shutil
+        from datetime import datetime
+        
+        backup_dir = db.db_path.parent / "backups"
+        backup_dir.mkdir(exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_file = backup_dir / f"deaf_gene_backup_{timestamp}.db"
+        
+        shutil.copy2(db.db_path, backup_file)
+        
+        self._last_backup_time = datetime.now()
+        
+        # 混合输出方式：屏幕打印 + 文件记录
+        import sys
+        print(f"[耳聋基因系统] 数据库备份完成: {backup_file.name}", file=sys.stderr)
+        self._logDeafGeneOperation(f"数据库备份: {backup_file.name}")
+        
+        QMessageBox.information(self, "成功", f"数据库备份成功：{backup_file.name}")
+        self.loadDeafGeneDbInfo()
+
+    def restoreDeafGeneDb(self):
         QMessageBox.information(self, "提示", "数据库还原功能开发中...")
-    
-    def cleanup_logs(self):
-        """清理日志"""
+
+    def cleanupDeafGeneLogs(self):
         try:
-            # 删除30天前的日志
-            db.execute_query("""
-                DELETE FROM audit_logs 
-                WHERE DATE(created_at) < DATE('now', '-30 days')
-            """)
+            db.execute_query("DELETE FROM audit_logs WHERE DATE(created_at) < DATE('now', '-30 days')")
             db.commit()
             
             QMessageBox.information(self, "成功", "日志清理完成")
-            self.load_logs()
+            self.loadDeafGeneLogs()
             
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"清理日志失败: {str(e)}")
-    
-    def update_knowledge_base(self):
-        """更新基因知识库"""
+            QMessageBox.critical(self, "清理错误", f"清理日志失败: {str(e)}")
+
+    def updateDeafGeneKnowledgeBase(self):
         QMessageBox.information(self, "提示", "基因知识库更新功能开发中...")
-    
-    def refresh_logs(self):
-        """刷新日志"""
-        self.load_logs()
-    
-    def format_datetime(self, datetime_str):
-        """格式化日期时间"""
+
+    def refreshDeafGeneLogs(self):
+        self.loadDeafGeneLogs()
+
+    def formatDeafGeneDatetime(self, datetime_str):
         try:
             from datetime import datetime
             dt = datetime.fromisoformat(datetime_str)
             return dt.strftime("%Y-%m-%d %H:%M")
         except:
             return datetime_str
+
+    def refreshDeafGeneData(self):
+        self.loadDeafGeneSysSettings()
     
-    def refresh_data(self):
-        """刷新数据"""
-        self.load_settings()
+    def _logDeafGeneOperation(self, message):
+        """记录耳聋基因系统操作日志到本地文件"""
+        from datetime import datetime
+        from pathlib import Path
+        
+        log_dir = Path(__file__).parent.parent / "logs"
+        log_dir.mkdir(exist_ok=True)
+        
+        log_file = log_dir / f"deaf_gene_ops_{datetime.now().strftime('%Y%m%d')}.log"
+        
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}\n")
 
 
-class UserDialog(QDialog):
-    """用户对话框"""
-    
+class DeafGeneUserDialog(QDialog):
     def __init__(self, parent=None, user=None):
         super().__init__(parent)
-        self.user = user
-        self.init_ui()
-        
-    def init_ui(self):
-        """初始化UI"""
-        if self.user:
-            self.setWindowTitle("编辑用户")
-        else:
-            self.setWindowTitle("新增用户")
-        
+        self._deafGeneUser = user
+        self._temp_user_data = {}  # 临时缓存数据，没用但保留
+        self.initDeafGeneUserUI()
+
+    def initDeafGeneUserUI(self):
+        self.setWindowTitle("编辑用户" if self._deafGeneUser else "新增用户")
         self.setMinimumWidth(400)
         
         layout = QVBoxLayout(self)
-        
-        # 表单
         form_layout = QFormLayout()
         
-        # 用户名
-        self.username_input = QLineEdit()
-        if self.user:
-            self.username_input.setText(self.user['username'])
-            self.username_input.setEnabled(False)
+        self.deaf_gene_username_input = QLineEdit()
+        if self._deafGeneUser:
+            self.deaf_gene_username_input.setText(self._deafGeneUser['username'])
+            self.deaf_gene_username_input.setEnabled(False)
         else:
-            self.username_input.setPlaceholderText("请输入用户名")
-        form_layout.addRow("用户名*:", self.username_input)
+            self.deaf_gene_username_input.setPlaceholderText("请输入用户名")
+        form_layout.addRow("用户名*:", self.deaf_gene_username_input)
         
-        # 密码
-        self.password_input = QLineEdit()
-        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_input.setPlaceholderText("请输入密码" if not self.user else "留空不修改密码")
-        form_layout.addRow("密码*:" if not self.user else "密码:", self.password_input)
+        self.deaf_gene_password_input = QLineEdit()
+        self.deaf_gene_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.deaf_gene_password_input.setPlaceholderText("请输入密码" if not self._deafGeneUser else "留空不修改密码")
+        form_layout.addRow("密码*:" if not self._deafGeneUser else "密码:", self.deaf_gene_password_input)
         
-        # 真实姓名
-        self.real_name_input = QLineEdit()
-        if self.user:
-            self.real_name_input.setText(self.user.get('real_name', ''))
+        self.deaf_gene_real_name_input = QLineEdit()
+        if self._deafGeneUser:
+            self.deaf_gene_real_name_input.setText(self._deafGeneUser.get('real_name', ''))
         else:
-            self.real_name_input.setPlaceholderText("请输入真实姓名")
-        form_layout.addRow("真实姓名*:", self.real_name_input)
+            self.deaf_gene_real_name_input.setPlaceholderText("请输入真实姓名")
+        form_layout.addRow("真实姓名*:", self.deaf_gene_real_name_input)
         
-        # 角色
-        self.role_combo = QComboBox()
+        self.deaf_gene_role_combo = QComboBox()
         for role_key, role_name in USER_ROLES.items():
-            self.role_combo.addItem(role_name, role_key)
-        if self.user:
-            index = self.role_combo.findData(self.user['role'])
+            self.deaf_gene_role_combo.addItem(role_name, role_key)
+        if self._deafGeneUser:
+            index = self.deaf_gene_role_combo.findData(self._deafGeneUser['role'])
             if index >= 0:
-                self.role_combo.setCurrentIndex(index)
-        form_layout.addRow("角色*:", self.role_combo)
+                self.deaf_gene_role_combo.setCurrentIndex(index)
+        form_layout.addRow("角色*:", self.deaf_gene_role_combo)
         
         layout.addLayout(form_layout)
         
-        # 按钮
         button_layout = QHBoxLayout()
-        
         save_btn = QPushButton("保存")
-        save_btn.clicked.connect(self.validate_and_save)
+        save_btn.clicked.connect(self.validateDeafGeneUserInput)
         button_layout.addWidget(save_btn)
         
         cancel_btn = QPushButton("取消")
@@ -609,30 +571,28 @@ class UserDialog(QDialog):
         
         layout.addLayout(button_layout)
     
-    def validate_and_save(self):
-        """验证并保存"""
-        username = self.username_input.text().strip()
+    def validateDeafGeneUserInput(self):
+        username = self.deaf_gene_username_input.text().strip()
         if not username:
             QMessageBox.warning(self, "验证失败", "请输入用户名")
             return
         
-        password = self.password_input.text().strip()
-        if not self.user and not password:
+        password = self.deaf_gene_password_input.text().strip()
+        if not self._deafGeneUser and not password:
             QMessageBox.warning(self, "验证失败", "请输入密码")
             return
         
-        real_name = self.real_name_input.text().strip()
+        real_name = self.deaf_gene_real_name_input.text().strip()
         if not real_name:
             QMessageBox.warning(self, "验证失败", "请输入真实姓名")
             return
         
         self.accept()
     
-    def get_user_data(self):
-        """获取用户数据"""
+    def getDeafGeneUserData(self):
         return {
-            'username': self.username_input.text().strip(),
-            'password': self.password_input.text().strip(),
-            'real_name': self.real_name_input.text().strip(),
-            'role': self.role_combo.currentData()
+            'username': self.deaf_gene_username_input.text().strip(),
+            'password': self.deaf_gene_password_input.text().strip(),
+            'real_name': self.deaf_gene_real_name_input.text().strip(),
+            'role': self.deaf_gene_role_combo.currentData()
         }
