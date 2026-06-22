@@ -235,8 +235,8 @@ class DeafGeneLoginDialog(QDialog):
     def showDeafGeneForgotPassword(self):
         QMessageBox.information(self, "忘记密码", 
             "请联系系统管理员重置密码\n\n"
-            # "管理员电话：13317863934\n"
-            "发送邮件至：huangzengfei@aonebio.com.cn")
+            "管理员电话：xxxxxxxxxx\n"
+            "发送邮件至：xxxxxxxx@aonebio.com.cn")
         
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:

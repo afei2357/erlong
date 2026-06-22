@@ -227,7 +227,10 @@ class Dashboard(QWidget):
     def switch_module(self, module_id):
         parent = self.parent()
         while parent:
-            if hasattr(parent, 'switch_module'):
+            if hasattr(parent, 'switchDeafGeneModule'):
+                parent.switchDeafGeneModule(module_id)
+                break
+            elif hasattr(parent, 'switch_module'):
                 parent.switch_module(module_id)
                 break
             parent = parent.parent()

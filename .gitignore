@@ -2,3 +2,5 @@ output/
 test_reports/
 temp_analysis/
 *.db
+logs/*
+log/*

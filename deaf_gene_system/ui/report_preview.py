@@ -686,8 +686,222 @@ class DeafGeneReportPreview(QWidget):
             self, "保存PDF报告", "", "PDF文件 (*.pdf)"
         )
         
-        if file_path:
-            QMessageBox.information(self, "提示", "PDF导出功能开发中...")
+        if not file_path:
+            return
+        
+        if not file_path.endswith('.pdf'):
+            file_path += '.pdf'
+        
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.units import mm
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.colors import HexColor
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+            from reportlab.lib.enums import TA_CENTER, TA_LEFT
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+            import os
+            
+            # 注册中文字体
+            font_paths = [
+                'C:/Windows/Fonts/simhei.ttf',
+                'C:/Windows/Fonts/msyh.ttc',
+                'C:/Windows/Fonts/simsun.ttc'
+            ]
+            
+            chinese_font = None
+            for font_path in font_paths:
+                if os.path.exists(font_path):
+                    try:
+                        if font_path.endswith('.ttc'):
+                            pdfmetrics.registerFont(TTFont('ChineseFont', font_path, subfontIndex=0))
+                        else:
+                            pdfmetrics.registerFont(TTFont('ChineseFont', font_path))
+                        chinese_font = 'ChineseFont'
+                        break
+                    except:
+                        continue
+            
+            if not chinese_font:
+                chinese_font = 'Helvetica'
+            
+            # 创建PDF文档
+            doc = SimpleDocTemplate(file_path, pagesize=A4, 
+                                   leftMargin=20*mm, rightMargin=20*mm,
+                                   topMargin=20*mm, bottomMargin=20*mm)
+            
+            # 创建样式
+            styles = getSampleStyleSheet()
+            title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'],
+                                        fontName=chinese_font, fontSize=18,
+                                        alignment=TA_CENTER, textColor=HexColor('#333333'),
+                                        spaceAfter=20)
+            subtitle_style = ParagraphStyle('CustomSubtitle', parent=styles['Heading2'],
+                                          fontName=chinese_font, fontSize=14,
+                                          alignment=TA_CENTER, textColor=HexColor('#666666'),
+                                          spaceAfter=30)
+            section_style = ParagraphStyle('CustomSection', parent=styles['Heading3'],
+                                           fontName=chinese_font, fontSize=12,
+                                           textColor=HexColor('#0078d4'),
+                                           spaceAfter=10, spaceBefore=15)
+            normal_style = ParagraphStyle('CustomNormal', parent=styles['Normal'],
+                                         fontName=chinese_font, fontSize=10,
+                                         textColor=HexColor('#333333'),
+                                         leading=14)
+            
+            # 获取当前样本信息
+            sample_info = None
+            gene_data_list = []
+            if self._deafGeneCurSampleId:
+                cursor = db.execute_query("SELECT * FROM samples WHERE id = ?", (self._deafGeneCurSampleId,))
+                row = cursor.fetchone()
+                if row:
+                    sample_info = dict(row)
+                
+                cursor = db.execute_query("SELECT * FROM gene_data WHERE sample_id = ?", (self._deafGeneCurSampleId,))
+                gene_data_list = [dict(row) for row in cursor.fetchall()]
+            
+            # 构建PDF内容
+            story = []
+            
+            # 标题
+            template_name = REPORT_TEMPLATES.get(self._deafGeneCurTemplate, "临床诊断报告")
+            story.append(Paragraph("耳聋基因检测报告", title_style))
+            story.append(Paragraph(template_name, subtitle_style))
+            
+            # 基本信息表格
+            patient_name = sample_info.get('patient_name', '') if sample_info else ''
+            gender = sample_info.get('gender', '') if sample_info else ''
+            age = sample_info.get('age', '') if sample_info else ''
+            clinical_diagnosis = sample_info.get('clinical_diagnosis', '') if sample_info else ''
+            hospital = sample_info.get('hospital', '') if sample_info else ''
+            report_no = self.deaf_gene_report_no_input.text() or '待生成'
+            
+            from datetime import datetime
+            report_date = datetime.now().strftime('%Y-%m-%d')
+            
+            info_data = [
+                ['报告编号', report_no, '送检单位', hospital or '待填写'],
+                ['受检者姓名', patient_name, '性别', gender],
+                ['年龄', age, '临床诊断', clinical_diagnosis],
+                ['检测项目', '耳聋基因检测Panel', '报告日期', report_date]
+            ]
+            
+            info_table = Table(info_data, colWidths=[70*mm, 55*mm, 70*mm, 55*mm])
+            info_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), chinese_font),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BACKGROUND', (0, 0), (0, -1), HexColor('#f8f9fa')),
+                ('BACKGROUND', (2, 0), (2, -1), HexColor('#f8f9fa')),
+                ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#dddddd')),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 5),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+                ('TOPPADDING', (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ]))
+            
+            story.append(info_table)
+            story.append(Spacer(1, 20))
+            
+            # 检测结果
+            story.append(Paragraph("检测结果", section_style))
+            
+            has_mutation = any(gd.get('pathogenicity') in ['致病性', '可能致病性', '疑似致病', '异常'] for gd in gene_data_list)
+            conclusion = "检测到致病变异" if has_mutation else "未检测到明确致病变异"
+            
+            # 基因检测结果表格
+            gene_table_data = [['基因名称', '突变位点', '基因型', '致病性', '参考依据']]
+            for gene_data in gene_data_list:
+                gene_table_data.append([
+                    gene_data.get('gene_name', ''),
+                    gene_data.get('mutation_site', ''),
+                    gene_data.get('genotype', ''),
+                    gene_data.get('pathogenicity', ''),
+                    gene_data.get('reference', '')
+                ])
+            
+            if not gene_data_list:
+                gene_table_data.append(['', '', '暂无检测数据', '', ''])
+            
+            col_widths = [35*mm, 40*mm, 35*mm, 35*mm, 45*mm]
+            gene_table = Table(gene_table_data, colWidths=col_widths)
+            gene_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), chinese_font),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BACKGROUND', (0, 0), (-1, 0), HexColor('#f8f9fa')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), HexColor('#333333')),
+                ('FONTNAME', (0, 0), (-1, 0), chinese_font),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOLD', (0, 0), (-1, 0), True),
+                ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#dddddd')),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 5),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+                ('TOPPADDING', (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ]))
+            
+            story.append(gene_table)
+            story.append(Spacer(1, 10))
+            
+            # 检测结论
+            conclusion_color = HexColor('#f44336') if has_mutation else HexColor('#4caf50')
+            conclusion_style = ParagraphStyle('Conclusion', parent=normal_style,
+                                               backColor=HexColor('#f8f9fa'),
+                                               borderColor=conclusion_color,
+                                               borderWidth=0,
+                                               borderPadding=10)
+            story.append(Paragraph(f"<b>检测结论：</b>{conclusion}", conclusion_style))
+            story.append(Paragraph("注：此结果基于当前检测范围，如有疑问请咨询遗传咨询师。", 
+                                  ParagraphStyle('Note', parent=normal_style, 
+                                                fontSize=8, textColor=HexColor('#666666'))))
+            
+            story.append(Spacer(1, 20))
+            
+            # 结果解读
+            story.append(Paragraph("结果解读", section_style))
+            interpretation = "本次检测发现与耳聋相关的致病变异" if has_mutation else "本次检测未发现与耳聋相关的明确致病变异"
+            story.append(Paragraph(f"<b>遗传模式：</b>常染色体隐性遗传", normal_style))
+            story.append(Paragraph(f"<b>致病性分析：</b>{interpretation}", normal_style))
+            story.append(Spacer(1, 10))
+            story.append(Paragraph("<b>临床建议：</b>", normal_style))
+            
+            if has_mutation:
+                story.append(Paragraph("1. 建议进行遗传咨询，了解疾病的遗传方式及再发风险", normal_style))
+                story.append(Paragraph("2. 如有生育计划，建议夫妻双方进行基因检测", normal_style))
+                story.append(Paragraph("3. 建议定期进行听力监测随访", normal_style))
+            else:
+                story.append(Paragraph("1. 目前未检测到明确的致病变异", normal_style))
+                story.append(Paragraph("2. 如有家族史或临床症状持续，建议进一步咨询", normal_style))
+            
+            story.append(Spacer(1, 30))
+            
+            # 签名区域
+            signature_data = [
+                ['检测医师：___________', '审核医师：___________', '报告日期：___________']
+            ]
+            signature_table = Table(signature_data, colWidths=[65*mm, 65*mm, 60*mm])
+            signature_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), chinese_font),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ]))
+            story.append(signature_table)
+            
+            # 生成PDF
+            doc.build(story)
+            
+            QMessageBox.information(self, "成功", f"PDF报告已导出到:\n{file_path}")
+            
+        except ImportError:
+            QMessageBox.critical(self, "失败", "缺少PDF生成库，请执行: pip install reportlab")
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "导出失败", f"PDF导出过程中发生错误: {str(e)}")
     
     def printDeafGeneReport(self):
         QMessageBox.information(self, "提示", "打印功能开发中...")

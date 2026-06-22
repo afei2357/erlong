@@ -20,12 +20,12 @@ TEMP_DIR.mkdir(exist_ok=True)
 BACKUP_DIR.mkdir(exist_ok=True)
 
 SOFTWARE_INFO = {
-    "name": "爱湾医学耳聋基因检测系统",
+    "name": "耳聋基因检测系统",
     "version": "1.3.9",  # 版本号改来改去的，先记在这里
     "company": "深圳爱湾医学检验实验室",
     "copyright": "© 2026 深圳爱湾医学检验实验室 版权所有",
     "description": "专业的耳聋基因检测与分析系统",
-    "contact": "0755-86708123",
+    "contact": "0755-xxxx",
     "build_date": "2026-06-17"  # 上次打包的日期，记一下
 }
 
