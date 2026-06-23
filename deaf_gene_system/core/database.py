@@ -104,6 +104,7 @@ class DeafGeneDbManager:
         self._create_gene_data_table()
         self._create_reports_table()
         self._create_audit_logs_table()
+        self._create_templates_table()
         
         self.commit()
         self.init_default_users()
@@ -197,7 +198,44 @@ class DeafGeneDbManager:
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """)
+    
+    def _create_templates_table(self):
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS report_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                template_code TEXT UNIQUE NOT NULL,
+                template_name TEXT NOT NULL,
+                hospital_name TEXT,
+                header_content TEXT,
+                footer_content TEXT,
+                normal_interpretation TEXT,
+                abnormal_interpretation TEXT,
+                clinical_suggestions TEXT,
+                tester_signature TEXT,
+                reviewer_signature TEXT,
+                seal_image TEXT,
+                is_default INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         
+        self._add_template_signature_columns()
+    
+    def _add_template_signature_columns(self):
+        columns_to_add = [
+            ('tester_signature', 'TEXT'),
+            ('reviewer_signature', 'TEXT'),
+            ('seal_image', 'TEXT')
+        ]
+        
+        for col_name, col_type in columns_to_add:
+            try:
+                self.execute_query(f"ALTER TABLE report_templates ADD COLUMN {col_name} {col_type}")
+            except DatabaseError:
+                pass
+    
     def init_default_users(self):
         print(f"检查默认用户...", file=sys.stderr)
         
@@ -534,6 +572,113 @@ class DeafGeneDbManager:
         return self.fetch_one(
             "SELECT * FROM reports WHERE sample_id = ? ORDER BY created_at DESC",
             (sample_id,)
+        )
+    
+    def create_report_template(self, template_data: Dict) -> int:
+        try:
+            if template_data.get('is_default'):
+                self.execute_query("UPDATE report_templates SET is_default = 0")
+            
+            cursor = self.execute_query("""
+                INSERT INTO report_templates (
+                    template_code, template_name, hospital_name, header_content,
+                    footer_content, normal_interpretation, abnormal_interpretation,
+                    clinical_suggestions, tester_signature, reviewer_signature,
+                    seal_image, is_default, is_active
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                template_data["template_code"],
+                template_data["template_name"],
+                template_data.get("hospital_name"),
+                template_data.get("header_content"),
+                template_data.get("footer_content"),
+                template_data.get("normal_interpretation"),
+                template_data.get("abnormal_interpretation"),
+                template_data.get("clinical_suggestions"),
+                template_data.get("tester_signature"),
+                template_data.get("reviewer_signature"),
+                template_data.get("seal_image"),
+                template_data.get("is_default", 0),
+                template_data.get("is_active", 1)
+            ))
+            self.commit()
+            return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            raise DuplicateRecordError(f"模板编码 '{template_data['template_code']}' 已存在")
+    
+    def get_report_template_by_code(self, template_code: str) -> Optional[Dict]:
+        return self.fetch_one(
+            "SELECT * FROM report_templates WHERE template_code = ? AND is_active = 1",
+            (template_code,)
+        )
+    
+    def get_all_report_templates(self) -> List[Dict]:
+        return self.fetch_all(
+            "SELECT * FROM report_templates WHERE is_active = 1 ORDER BY is_default DESC, created_at DESC"
+        )
+    
+    def update_report_template(self, template_code: str, template_data: Dict):
+        if template_data.get('is_default'):
+            self.execute_query("UPDATE report_templates SET is_default = 0")
+        
+        set_clauses = []
+        params = []
+        
+        if 'template_name' in template_data:
+            set_clauses.append("template_name = ?")
+            params.append(template_data['template_name'])
+        if 'hospital_name' in template_data:
+            set_clauses.append("hospital_name = ?")
+            params.append(template_data['hospital_name'])
+        if 'header_content' in template_data:
+            set_clauses.append("header_content = ?")
+            params.append(template_data['header_content'])
+        if 'footer_content' in template_data:
+            set_clauses.append("footer_content = ?")
+            params.append(template_data['footer_content'])
+        if 'normal_interpretation' in template_data:
+            set_clauses.append("normal_interpretation = ?")
+            params.append(template_data['normal_interpretation'])
+        if 'abnormal_interpretation' in template_data:
+            set_clauses.append("abnormal_interpretation = ?")
+            params.append(template_data['abnormal_interpretation'])
+        if 'clinical_suggestions' in template_data:
+            set_clauses.append("clinical_suggestions = ?")
+            params.append(template_data['clinical_suggestions'])
+        if 'tester_signature' in template_data:
+            set_clauses.append("tester_signature = ?")
+            params.append(template_data['tester_signature'])
+        if 'reviewer_signature' in template_data:
+            set_clauses.append("reviewer_signature = ?")
+            params.append(template_data['reviewer_signature'])
+        if 'seal_image' in template_data:
+            set_clauses.append("seal_image = ?")
+            params.append(template_data['seal_image'])
+        if 'is_default' in template_data:
+            set_clauses.append("is_default = ?")
+            params.append(template_data['is_default'])
+        
+        set_clauses.append("updated_at = ?")
+        params.append(datetime.now().isoformat())
+        params.append(template_code)
+        
+        if set_clauses:
+            self.execute_query(
+                "UPDATE report_templates SET " + ", ".join(set_clauses) + " WHERE template_code = ?",
+                tuple(params)
+            )
+            self.commit()
+    
+    def delete_report_template(self, template_code: str):
+        self.execute_query(
+            "UPDATE report_templates SET is_active = 0 WHERE template_code = ?",
+            (template_code,)
+        )
+        self.commit()
+    
+    def get_default_template(self) -> Optional[Dict]:
+        return self.fetch_one(
+            "SELECT * FROM report_templates WHERE is_default = 1 AND is_active = 1"
         )
 
 

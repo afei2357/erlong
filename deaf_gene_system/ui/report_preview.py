@@ -130,8 +130,7 @@ class DeafGeneReportPreview(QWidget):
         template_layout = QVBoxLayout()
         
         self.deaf_gene_template_combo = QComboBox()
-        for template_key, template_name in REPORT_TEMPLATES.items():
-            self.deaf_gene_template_combo.addItem(template_name, template_key)
+        self.loadDeafGeneTemplates()
         self.deaf_gene_template_combo.currentTextChanged.connect(self.onDeafGeneTemplateChanged)
         template_layout.addWidget(self.deaf_gene_template_combo)
         
@@ -254,6 +253,21 @@ class DeafGeneReportPreview(QWidget):
             )
             item.setData(Qt.ItemDataRole.UserRole, sample)
             self.deaf_gene_sample_list.addItem(item)
+    
+    def loadDeafGeneTemplates(self):
+        self.deaf_gene_template_combo.clear()
+        
+        db_templates = db.get_all_report_templates()
+        
+        if db_templates:
+            for template in db_templates:
+                template_name = template['template_name']
+                if template.get('is_default'):
+                    template_name += " (默认)"
+                self.deaf_gene_template_combo.addItem(template_name, template['template_code'])
+        else:
+            for template_key, template_name in REPORT_TEMPLATES.items():
+                self.deaf_gene_template_combo.addItem(template_name, template_key)
         
     def onDeafGeneSampleSelected(self, item):
         sample = item.data(Qt.ItemDataRole.UserRole)
@@ -295,7 +309,23 @@ class DeafGeneReportPreview(QWidget):
         self.deaf_gene_preview_content.setHtml(template_content)
     
     def getDeafGeneTemplateContent(self):
-        template_name = REPORT_TEMPLATES.get(self._deafGeneCurTemplate, "临床诊断报告")
+        template_data = None
+        if self._deafGeneCurTemplate:
+            template_data = db.get_report_template_by_code(self._deafGeneCurTemplate)
+        
+        if not template_data:
+            template_data = db.get_default_template()
+        
+        template_name = template_data.get('template_name', REPORT_TEMPLATES.get(self._deafGeneCurTemplate, "临床诊断报告")) if template_data else REPORT_TEMPLATES.get(self._deafGeneCurTemplate, "临床诊断报告")
+        hospital_name = template_data.get('hospital_name', '') if template_data else ''
+        header_content = template_data.get('header_content', '') if template_data else ''
+        footer_content = template_data.get('footer_content', '') if template_data else ''
+        normal_interpretation = template_data.get('normal_interpretation', '') if template_data else ''
+        abnormal_interpretation = template_data.get('abnormal_interpretation', '') if template_data else ''
+        clinical_suggestions = template_data.get('clinical_suggestions', '') if template_data else ''
+        tester_signature = template_data.get('tester_signature', '') if template_data else ''
+        reviewer_signature = template_data.get('reviewer_signature', '') if template_data else ''
+        seal_image = template_data.get('seal_image', '') if template_data else ''
         
         sample_info = None
         gene_data_list = []
@@ -323,6 +353,7 @@ class DeafGeneReportPreview(QWidget):
         
         has_mutation = any(gd.get('pathogenicity') in ['致病性', '可能致病性', '疑似致病', '异常'] for gd in gene_data_list)
         conclusion = "检测到致病变异" if has_mutation else "未检测到明确致病变异"
+        interpretation = abnormal_interpretation if has_mutation and abnormal_interpretation else (normal_interpretation if normal_interpretation else ("本次检测发现与耳聋相关的致病变异" if has_mutation else "本次检测未发现与耳聋相关的明确致病变异"))
         
         patient_name = sample_info.get('patient_name', '') if sample_info else ''
         gender = sample_info.get('gender', '') if sample_info else ''
@@ -392,13 +423,9 @@ class DeafGeneReportPreview(QWidget):
                 <h3 style="color: #0078d4; border-left: 4px solid #0078d4; padding-left: 10px; margin-bottom: 15px;">结果解读</h3>
                 <div style="line-height: 1.8; color: #555;">
                     <p>1. <strong>遗传模式：</strong>常染色体隐性遗传</p>
-                    <p>2. <strong>致病性分析：</strong>{'本次检测发现与耳聋相关的致病变异' if has_mutation else '本次检测未发现与耳聋相关的明确致病变异'}</p>
+                    <p>2. <strong>致病性分析：</strong>{interpretation}</p>
                     <p>3. <strong>临床建议：</strong></p>
-                    <ul style="margin: 10px 0; padding-left: 20px;">
-                        <li>建议定期进行听力筛查</li>
-                        <li>如有家族史，建议进行遗传咨询</li>
-                        <li>避免使用耳毒性药物</li>
-                    </ul>
+                    <div style="margin: 10px 0; padding-left: 20px;">{clinical_suggestions if clinical_suggestions else '<ul><li>建议定期进行听力筛查</li><li>如有家族史，建议进行遗传咨询</li><li>避免使用耳毒性药物</li></ul>'}</div>
                 </div>
             </div>
             
@@ -416,10 +443,12 @@ class DeafGeneReportPreview(QWidget):
                 <table style="width: 100%;">
                     <tr>
                         <td style="width: 50%; padding: 10px;">
-                            <strong>检测医师：</strong>________________
+                            <strong>检测医师：</strong><br/>
+                            {'<img src="data:image/png;base64,' + tester_signature + '" style="max-width: 120px; max-height: 40px;" />' if tester_signature else '________________'}
                         </td>
                         <td style="width: 50%; padding: 10px;">
-                            <strong>审核医师：</strong>________________
+                            <strong>审核医师：</strong><br/>
+                            {'<img src="data:image/png;base64,' + reviewer_signature + '" style="max-width: 120px; max-height: 40px;" />' if reviewer_signature else '________________'}
                         </td>
                     </tr>
                     <tr>
@@ -427,7 +456,8 @@ class DeafGeneReportPreview(QWidget):
                             <strong>报告日期：</strong>2024-06-16
                         </td>
                         <td style="padding: 10px;">
-                            <strong>盖章：</strong>________________
+                            <strong>盖章：</strong><br/>
+                            {'<img src="data:image/png;base64,' + seal_image + '" style="max-width: 80px; max-height: 80px;" />' if seal_image else '________________'}
                         </td>
                     </tr>
                 </table>
@@ -762,11 +792,27 @@ class DeafGeneReportPreview(QWidget):
                 cursor = db.execute_query("SELECT * FROM gene_data WHERE sample_id = ?", (self._deafGeneCurSampleId,))
                 gene_data_list = [dict(row) for row in cursor.fetchall()]
             
+            # 获取模板数据
+            template_data = None
+            if self._deafGeneCurTemplate:
+                template_data = db.get_report_template_by_code(self._deafGeneCurTemplate)
+            
+            if not template_data:
+                template_data = db.get_default_template()
+            
+            template_name = template_data.get('template_name', REPORT_TEMPLATES.get(self._deafGeneCurTemplate, "临床诊断报告")) if template_data else REPORT_TEMPLATES.get(self._deafGeneCurTemplate, "临床诊断报告")
+            hospital_name = template_data.get('hospital_name', '') if template_data else ''
+            normal_interpretation = template_data.get('normal_interpretation', '') if template_data else ''
+            abnormal_interpretation = template_data.get('abnormal_interpretation', '') if template_data else ''
+            clinical_suggestions = template_data.get('clinical_suggestions', '') if template_data else ''
+            tester_signature = template_data.get('tester_signature', '') if template_data else ''
+            reviewer_signature = template_data.get('reviewer_signature', '') if template_data else ''
+            seal_image = template_data.get('seal_image', '') if template_data else ''
+            
             # 构建PDF内容
             story = []
             
             # 标题
-            template_name = REPORT_TEMPLATES.get(self._deafGeneCurTemplate, "临床诊断报告")
             story.append(Paragraph("耳聋基因检测报告", title_style))
             story.append(Paragraph(template_name, subtitle_style))
             
@@ -863,13 +909,17 @@ class DeafGeneReportPreview(QWidget):
             
             # 结果解读
             story.append(Paragraph("结果解读", section_style))
-            interpretation = "本次检测发现与耳聋相关的致病变异" if has_mutation else "本次检测未发现与耳聋相关的明确致病变异"
+            interpretation = abnormal_interpretation if has_mutation and abnormal_interpretation else (normal_interpretation if normal_interpretation else ("本次检测发现与耳聋相关的致病变异" if has_mutation else "本次检测未发现与耳聋相关的明确致病变异"))
             story.append(Paragraph(f"<b>遗传模式：</b>常染色体隐性遗传", normal_style))
             story.append(Paragraph(f"<b>致病性分析：</b>{interpretation}", normal_style))
             story.append(Spacer(1, 10))
             story.append(Paragraph("<b>临床建议：</b>", normal_style))
             
-            if has_mutation:
+            if clinical_suggestions:
+                for line in clinical_suggestions.split('\n'):
+                    if line.strip():
+                        story.append(Paragraph(line.strip(), normal_style))
+            elif has_mutation:
                 story.append(Paragraph("1. 建议进行遗传咨询，了解疾病的遗传方式及再发风险", normal_style))
                 story.append(Paragraph("2. 如有生育计划，建议夫妻双方进行基因检测", normal_style))
                 story.append(Paragraph("3. 建议定期进行听力监测随访", normal_style))
@@ -880,19 +930,80 @@ class DeafGeneReportPreview(QWidget):
             story.append(Spacer(1, 30))
             
             # 签名区域
-            signature_data = [
-                ['检测医师：___________', '审核医师：___________', '报告日期：___________']
-            ]
+            from PIL import Image
+            import io
+            import base64
+            import tempfile
+            import os
+            
+            temp_files = []
+            
+            def get_signature_image(base64_data, max_width=120, max_height=40):
+                if not base64_data:
+                    return None
+                try:
+                    image_data = base64.b64decode(base64_data)
+                    img = Image.open(io.BytesIO(image_data))
+                    
+                    width, height = img.size
+                    scale = min(max_width / width, max_height / height)
+                    new_width = int(width * scale)
+                    new_height = int(height * scale)
+                    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    
+                    temp_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+                    img.save(temp_file.name, format='PNG')
+                    temp_file.close()
+                    temp_files.append(temp_file.name)
+                    return temp_file.name
+                except:
+                    return None
+            
+            tester_img_path = get_signature_image(tester_signature, max_width=120, max_height=40)
+            reviewer_img_path = get_signature_image(reviewer_signature, max_width=120, max_height=40)
+            seal_img_path = get_signature_image(seal_image, max_width=80, max_height=80)
+            
+            signature_data = []
+            
+            tester_cell = Paragraph("检测医师：", normal_style)
+            if tester_img_path:
+                from reportlab.platypus import Image as RLImage
+                tester_cell = RLImage(tester_img_path, width=35*mm, height=10*mm)
+            
+            reviewer_cell = Paragraph("审核医师：", normal_style)
+            if reviewer_img_path:
+                from reportlab.platypus import Image as RLImage
+                reviewer_cell = RLImage(reviewer_img_path, width=35*mm, height=10*mm)
+            
+            signature_data.append([tester_cell, reviewer_cell, Paragraph("报告日期：" + report_date, normal_style)])
+            
+            if seal_img_path:
+                from reportlab.platypus import Image as RLImage
+                seal_cell = RLImage(seal_img_path, width=20*mm, height=20*mm)
+            else:
+                seal_cell = Paragraph("盖章：___________", normal_style)
+            
+            signature_data.append([Paragraph("", normal_style), seal_cell, Paragraph("", normal_style)])
+            
             signature_table = Table(signature_data, colWidths=[65*mm, 65*mm, 60*mm])
             signature_table.setStyle(TableStyle([
                 ('FONTNAME', (0, 0), (-1, -1), chinese_font),
                 ('FONTSIZE', (0, 0), (-1, -1), 10),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ]))
             story.append(signature_table)
             
             # 生成PDF
             doc.build(story)
+            
+            # 清理临时文件（必须在PDF构建完成后）
+            for path in temp_files:
+                try:
+                    if os.path.exists(path):
+                        os.unlink(path)
+                except:
+                    pass
             
             QMessageBox.information(self, "成功", f"PDF报告已导出到:\n{file_path}")
             
@@ -955,3 +1066,4 @@ class DeafGeneReportPreview(QWidget):
     
     def refreshDeafGeneData(self):
         self.loadDeafGeneSamples()
+        self.loadDeafGeneTemplates()
