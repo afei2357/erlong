@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# 权属说明：系统设置
 
-from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import *
 from PyQt6.QtGui import QColor
 
-import json
-
 from core.database import db
+import json
 from core.auth import auth_manager
 from config import USER_ROLES, PERMISSIONS
+
+import shutil  # 之前调试备份用的，没删
 
 
 class DeafGeneSysSettingException(Exception):

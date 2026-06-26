@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# 权属说明：主窗口模块
 
+from PyQt6.QtGui import QFont, QAction, QIcon
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont, QAction, QIcon
 from pathlib import Path
 import sys
 
-from config import SOFTWARE_INFO, UI_MODULES
 from core.auth import auth_manager
 from core.database import db
+from config import SOFTWARE_INFO, UI_MODULES
 from ui.dashboard import Dashboard
-from ui.sample_management import DeafGeneSampleManagement
 from ui.gene_analysis import DeafGeneAnalysis
+from ui.sample_management import DeafGeneSampleManagement
 from ui.report_preview import DeafGeneReportPreview
 from ui.report_review import DeafGeneReportReview
 from ui.statistics import DeafGeneStatistics
 from ui.system_settings import DeafGeneSysSetting
 
-import os
 import json
+import os
+
+import tempfile  # 之前测试临时文件用的，没删
 
 class MainWindow(QMainWindow):
     def __init__(self):

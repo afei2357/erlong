@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from PyQt6.QtGui import QColor, QFont
 import sys
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QColor, QFont
-
-import csv
 
 from core.database import db
+
+import csv
+# import matplotlib.pyplot as plt  # 之前调试画图用的，暂时没删
 
 
 class DeafGeneStatQueryException(Exception):

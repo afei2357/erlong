@@ -1,25 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# 权属说明：内部系统
 
-import sys
 from pathlib import Path
+import sys
 import traceback
 
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
+
+import os
 
 try:
     from PyQt6.QtWebEngineWidgets import QWebEngineView
 except ImportError:
     print(f"QtWebEngineWidgets 导入失败，报告预览可能无法使用", file=sys.stderr)
 
-from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QFont, QIcon
-
-import os
+from PyQt6.QtWidgets import QApplication
 
 from config import SOFTWARE_INFO
+
+import multiprocessing  # 之前想做多进程，后来用线程就够了
 
 
 class DeafGeneSystemApp:

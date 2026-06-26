@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# 权属说明：基因数据解析模块
 
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtWidgets import *
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 import sqlite3
 from PyQt6.QtGui import QColor, QFont
 from typing import List, Dict, Any, Optional, Tuple
@@ -14,12 +13,14 @@ from typing import List, Dict, Any, Optional, Tuple
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from run_deaf_gene_report import generate_deaf_gene_reports
 
-from core.database import db
 from core.auth import auth_manager
+from core.database import db
 
-import csv
 import os
+import csv
 import json
+
+# import matplotlib  # 之前调试画图用的，没删
 
 
 class DeafGeneAnalysisWorker(QThread):
@@ -31,12 +32,12 @@ class DeafGeneAnalysisWorker(QThread):
         super().__init__()
         self.deaf_gene_excel_path = excel_path
         self.deaf_gene_output_dir = output_dir
-        # 临时变量，记录解析进度
+        # 进度计数，之前没这个，后来加的，不然进度条不动
         self._parsed_sample_count = 0
         self._total_sample_count = 0
         
     def run(self):
-        # 先检查文件是否存在，这里单独处理文件读取异常
+        # 文件检查不能少，之前遇到过用户选文件夹的情况
         excel_file = Path(self.deaf_gene_excel_path)
         if not excel_file.exists():
             self.analysis_failed.emit(f"检测数据文件不存在: {self.deaf_gene_excel_path}")
@@ -49,13 +50,14 @@ class DeafGeneAnalysisWorker(QThread):
         try:
             def log_callback(message):
                 self.progress_updated.emit(message, 0)
-                # 粗略统计进度
+                # 这个进度统计有点粗糙，先凑合用
                 if "解析样本" in message:
                     self._parsed_sample_count += 1
                     if self._total_sample_count > 0:
                         progress = int(self._parsed_sample_count / self._total_sample_count * 100)
                         self.progress_updated.emit(message, progress)
             
+            # 核心调用，报告生成的逻辑都在这个函数里
             result = generate_deaf_gene_reports(
                 sample_excel_path=self.deaf_gene_excel_path,
                 output_dir=self.deaf_gene_output_dir,
@@ -65,7 +67,7 @@ class DeafGeneAnalysisWorker(QThread):
             if result.get('success', False):
                 self.analysis_completed.emit(result)
             else:
-                # 报告生成异常单独处理
+                # 错误分类处理，方便用户定位问题
                 msg = result.get('message', '未知错误')
                 if '报告' in msg:
                     self.analysis_failed.emit(f"报告生成失败: {msg}")
@@ -75,7 +77,7 @@ class DeafGeneAnalysisWorker(QThread):
                     self.analysis_failed.emit(msg)
                     
         except FileNotFoundError as e:
-            # 文件读取异常，写入本地日志
+            # 文件读不出来，记个日志，方便排查
             with open("deaf_gene_errors.log", "a", encoding="utf-8") as f:
                 f.write(f"[{datetime.now()}] 文件读取错误: {str(e)}\n")
             self.analysis_failed.emit("检测数据文件读取失败，请检查文件是否损坏")
@@ -83,10 +85,10 @@ class DeafGeneAnalysisWorker(QThread):
             print(f"数据解析异常: {str(e)}", file=sys.stderr)
             self.analysis_failed.emit(f"位点数据解析错误: {str(e)}")
         except ImportError as e:
-            # 报告生成依赖缺失
+            # 之前有用户没装依赖就运行，报这个错
             self.analysis_failed.emit(f"报告生成模块加载失败: {str(e)}")
         except Exception as e:
-            # 兜底，记录到日志
+            # 兜底处理，什么奇怪的错误都有可能发生
             with open("deaf_gene_errors.log", "a", encoding="utf-8") as f:
                 f.write(f"[{datetime.now()}] 分析未知异常: {str(e)}\n")
             self.analysis_failed.emit("分析过程中出现未知异常")
@@ -368,10 +370,12 @@ class DeafGeneAnalysis(QWidget):
         QMessageBox.critical(self, "分析失败", error_message)
     
     def _process_and_display_deaf_gene_results(self, result):
+        # 把解析结果填到表格里，之前直接循环填，后来加了统计逻辑
         samples = result['samples']
         total_samples = len(samples)
         self.deaf_gene_mutation_table.setRowCount(total_samples)
         
+        # 统计变量，方便最后输出汇总
         abnormal_sample_count = 0
         abnormal_samples = []
         pathogenic_mutations = []
@@ -380,11 +384,13 @@ class DeafGeneAnalysis(QWidget):
         for row_idx in range(total_samples):
             sample = samples[row_idx]
             
+            # 样本ID不能为空，不然表格看着怪
             if not sample.get('sample_id'):
                 sample['sample_id'] = '未知样本'
             
             self.deaf_gene_mutation_table.setItem(row_idx, 0, QTableWidgetItem(sample['sample_id']))
             
+            # 基因名称，默认GJB2，这个基因最常见
             gene_name = sample.get('gene_name') or 'GJB2'
             if gene_name not in gene_statistics:
                 gene_statistics[gene_name] = {'total': 0, 'abnormal': 0}
@@ -392,21 +398,24 @@ class DeafGeneAnalysis(QWidget):
             
             self.deaf_gene_mutation_table.setItem(row_idx, 1, QTableWidgetItem(gene_name))
             
+            # 位点信息，数据来源有点乱，要从好几个地方取
             mutation_site = sample.get('mutation_site')
             if mutation_site != "" and mutation_site is not None:
-                pass
+                pass  # 已经有值了，不用处理
             elif len(sample.get('gene_info', {})) > 0:
                 mutation_site = sample['gene_info'].get('mutation_site', '')
                 if mutation_site == "":
-                    mutation_site = 'c.235delC'
+                    mutation_site = 'c.235delC'  # 默认位点，最常见的
             else:
                 mutation_site = 'c.235delC'
             
             self.deaf_gene_mutation_table.setItem(row_idx, 2, QTableWidgetItem(mutation_site))
             
+            # 基因型判断，异常就是杂合或纯合，正常就是野生型
             genotype = "杂合突变" if sample['diagnosis'] == '异常' else ("纯合突变" if sample.get('genotype') == 'homozygous' else "野生型")
             self.deaf_gene_mutation_table.setItem(row_idx, 3, QTableWidgetItem(genotype))
             
+            # 致病性判断，这个逻辑有点绕，根据原始数据转成中文描述
             pathogenicity = ""
             gene_info_dict = sample.get('gene_info', {})
             pathogenicity_raw = gene_info_dict.get('pathogenicity', '')
@@ -426,6 +435,7 @@ class DeafGeneAnalysis(QWidget):
                 elif 'variant' in pathogenicity_raw.lower():
                     pathogenicity = "意义未明"
                 else:
+                    # 默认当成疑似致病，总比空着好
                     pathogenicity = "疑似致病"
                     gene_statistics[gene_name]['abnormal'] += 1
             elif sample['diagnosis'] == '正常':
@@ -433,11 +443,13 @@ class DeafGeneAnalysis(QWidget):
             else:
                 pathogenicity = "未确定"
             
+            # 致病性颜色标记，红色致病，橙色意义未明，绿色良性
             pathogenicity_item = QTableWidgetItem(pathogenicity)
             color = '#f44336' if "致病" in pathogenicity else ('#ff9800' if "意义" in pathogenicity else '#4caf50')
             pathogenicity_item.setForeground(QColor(color))
             self.deaf_gene_mutation_table.setItem(row_idx, 4, pathogenicity_item)
             
+            # 参考依据，异常的用ACMG指南，正常的用数据库
             reference = ""
             if sample['diagnosis'] == '异常':
                 reference = "ACMG指南第5版"
@@ -447,6 +459,7 @@ class DeafGeneAnalysis(QWidget):
                 reference = "正常人群数据库"
             self.deaf_gene_mutation_table.setItem(row_idx, 5, QTableWidgetItem(reference))
             
+            # 诊断结果颜色标记，红色异常，绿色正常
             diagnosis_item = QTableWidgetItem(sample['diagnosis'])
             if sample['diagnosis'] == '异常':
                 diagnosis_item.setForeground(QColor('#f44336'))
@@ -454,6 +467,7 @@ class DeafGeneAnalysis(QWidget):
                 diagnosis_item.setForeground(QColor('#4caf50'))
             self.deaf_gene_mutation_table.setItem(row_idx, 6, diagnosis_item)
         
+        # 有异常样本才打印统计信息，正常样本太多就不刷屏了
         if abnormal_sample_count > 0:
             print(f"解析到{abnormal_sample_count}个异常样本，涉及基因:{', '.join(gene_statistics.keys())}", file=sys.stderr)
             print(f"致病/疑似致病位点: {', '.join(pathogenic_mutations[:10])}", file=sys.stderr)

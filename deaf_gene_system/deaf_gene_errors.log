@@ -1,0 +1,32 @@
+[2026-06-25 10:16:47.496534] SQL错误: ALTER TABLE report_templates ADD COLUMN tester_sig - duplicate column name: tester_signature
+[2026-06-25 10:16:47.497302] SQL错误: ALTER TABLE report_templates ADD COLUMN reviewer_s - duplicate column name: reviewer_signature
+[2026-06-25 10:16:47.498280] SQL错误: ALTER TABLE report_templates ADD COLUMN seal_signa - duplicate column name: seal_signature
+[2026-06-25 10:16:47.498824] SQL错误: ALTER TABLE report_templates ADD COLUMN hospital_n - duplicate column name: hospital_name
+[2026-06-25 10:16:47.499251] SQL错误: ALTER TABLE report_templates ADD COLUMN department - duplicate column name: department_name
+[2026-06-25 10:16:47.499667] SQL错误: ALTER TABLE samples ADD COLUMN family_history TEXT - duplicate column name: family_history
+[2026-06-25 10:16:47.500425] SQL错误: ALTER TABLE samples ADD COLUMN notes TEXT - duplicate column name: notes
+[2026-06-25 10:26:57.961498] SQL错误: ALTER TABLE report_templates ADD COLUMN tester_sig - duplicate column name: tester_signature
+[2026-06-25 10:26:57.961823] SQL错误: ALTER TABLE report_templates ADD COLUMN reviewer_s - duplicate column name: reviewer_signature
+[2026-06-25 10:26:57.962134] SQL错误: ALTER TABLE report_templates ADD COLUMN seal_signa - duplicate column name: seal_signature
+[2026-06-25 10:26:57.962469] SQL错误: ALTER TABLE report_templates ADD COLUMN hospital_n - duplicate column name: hospital_name
+[2026-06-25 10:26:57.962662] SQL错误: ALTER TABLE report_templates ADD COLUMN department - duplicate column name: department_name
+[2026-06-25 10:26:57.962809] SQL错误: ALTER TABLE samples ADD COLUMN family_history TEXT - duplicate column name: family_history
+[2026-06-25 10:26:57.963030] SQL错误: ALTER TABLE samples ADD COLUMN notes TEXT - duplicate column name: notes
+[2026-06-25 10:26:57.963413] SQL错误: INSERT INTO users (username, password, role, real_ - table users has no column named real_name
+[2026-06-25 10:26:57.963642] 数据库连接失败: table users has no column named real_name
+[2026-06-25 10:38:34.891737] SQL错误: ALTER TABLE report_templates ADD COLUMN tester_sig - duplicate column name: tester_signature
+[2026-06-25 10:38:34.892094] SQL错误: ALTER TABLE report_templates ADD COLUMN reviewer_s - duplicate column name: reviewer_signature
+[2026-06-25 10:38:34.892451] SQL错误: ALTER TABLE report_templates ADD COLUMN seal_signa - duplicate column name: seal_signature
+[2026-06-25 10:38:34.892731] SQL错误: ALTER TABLE report_templates ADD COLUMN hospital_n - duplicate column name: hospital_name
+[2026-06-25 10:38:34.893017] SQL错误: ALTER TABLE report_templates ADD COLUMN department - duplicate column name: department_name
+[2026-06-25 10:38:34.893189] SQL错误: ALTER TABLE samples ADD COLUMN family_history TEXT - duplicate column name: family_history
+[2026-06-25 10:38:34.893369] SQL错误: ALTER TABLE samples ADD COLUMN notes TEXT - duplicate column name: notes
+[2026-06-25 10:39:29.518303] SQL错误: ALTER TABLE report_templates ADD COLUMN tester_sig - duplicate column name: tester_signature
+[2026-06-25 10:39:29.518614] SQL错误: ALTER TABLE report_templates ADD COLUMN reviewer_s - duplicate column name: reviewer_signature
+[2026-06-25 10:39:29.518859] SQL错误: ALTER TABLE report_templates ADD COLUMN seal_signa - duplicate column name: seal_signature
+[2026-06-25 10:39:29.519223] SQL错误: ALTER TABLE report_templates ADD COLUMN hospital_n - duplicate column name: hospital_name
+[2026-06-25 10:39:29.519424] SQL错误: ALTER TABLE report_templates ADD COLUMN department - duplicate column name: department_name
+[2026-06-25 10:39:29.519685] SQL错误: ALTER TABLE samples ADD COLUMN family_history TEXT - duplicate column name: family_history
+[2026-06-25 10:39:29.520136] SQL错误: ALTER TABLE samples ADD COLUMN notes TEXT - duplicate column name: notes
+[2026-06-25 10:39:29.520535] SQL错误: ALTER TABLE users ADD COLUMN real_name TEXT - duplicate column name: real_name
+[2026-06-25 10:39:29.520814] SQL错误: ALTER TABLE users ADD COLUMN last_login TIMESTAMP - duplicate column name: last_login

@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# 权属说明：仪表盘
 
-from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QPalette, QColor
+from PyQt6.QtWidgets import *
 
-import os,sys
+import sys
+import os
 
 from core.database import db
 from config import SAMPLE_STATUS, REPORT_STATUS
+
+# import matplotlib.pyplot as plt  # 之前调试画图用的，没删
 
 
 class Dashboard(QWidget):

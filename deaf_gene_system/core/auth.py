@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import sys
 from datetime import datetime, timedelta
+import sys
 import json
 from typing import Dict, Optional
 
 import os
 
-from config import USER_ROLES, PERMISSIONS, SECURITY_CONFIG
 from core.database import db
+from config import USER_ROLES, PERMISSIONS, SECURITY_CONFIG
+
+# import jwt  # 之前想加Token认证，后来暂时搁置了
 
 
 # 账户锁定异常 - 连续输错密码太多次会触发
@@ -29,22 +31,28 @@ class SessionExpiredError(Exception):
 
 class AuthManager:
     def __init__(self):
+        # 当前登录用户，None表示未登录
         self.current_user = None
+        # 会话开始时间，用于判断会话是否过期
         self.session_start = None
+        # 记录登录失败次数，防止暴力破解
         self.login_attempts = {}
-        self.debug_mode = True  # 调试模式开关，上线时记得关掉
-        self._last_login_trace = None  # 记录最后一次登录的详细信息，方便排查问题
+        self.debug_mode = True  # 调试模式，上线记得关掉
+        # 记录最后一次登录信息，之前遇到过登录问题，靠这个排查
+        self._last_login_trace = None
     
     def login(self, username: str, password: str) -> Dict:
         if self.debug_mode:
             print(f"用户登录尝试: {username}", file=sys.stderr)
         
         try:
+            # 先检查账户有没有被锁定，连续输错太多次会锁10分钟
             if self._is_locked(username):
                 if self.debug_mode:
                     print(f"账户已锁定: {username}", file=sys.stderr)
                 raise AccountLockedError("账户已被锁定，请稍后再试")
             
+            # 验证用户名和密码，数据库里存的是哈希值
             user = db.verify_user(username, password)
             
             if not user:
@@ -52,6 +60,7 @@ class AuthManager:
                     print(f"验证失败: {username}", file=sys.stderr)
                 raise InvalidCredentialsError("用户名或密码错误")
             
+            # 登录成功，更新状态
             self._on_login_success(user, username)
             
             return {
@@ -61,6 +70,7 @@ class AuthManager:
             }
             
         except (AccountLockedError, InvalidCredentialsError) as e:
+            # 登录失败，记录失败次数
             self._handle_login_failure(username, str(e))
             return {
                 "success": False,
@@ -68,21 +78,24 @@ class AuthManager:
             }
     
     def _on_login_success(self, user, username):
+        # 更新当前用户信息
         self.current_user = user
         self.session_start = datetime.now()
+        # 重置失败次数，成功登录后就解锁了
         self._reset_attempts(username)
         
-        # 记录登录追踪信息，方便排查问题
+        # 记录登录追踪信息，方便排查问题，IP暂时写死localhost
         self._last_login_trace = {
             "username": username,
             "user_id": user["id"],
             "login_time": datetime.now().isoformat(),
-            "ip": "localhost"  # 这里应该取真实IP，暂时先用localhost
+            "ip": "localhost"
         }
         
         if self.debug_mode:
             print(f"登录成功: {username} (ID:{user['id']})", file=sys.stderr)
         
+        # 写审计日志，谁什么时候登录了
         db.log_audit(
             user_id=user["id"],
             action="login",
@@ -92,6 +105,7 @@ class AuthManager:
         )
     
     def _handle_login_failure(self, username, message):
+        # 锁定状态不算失败次数，不然永远解不了锁
         if "锁定" not in message:
             self._record_failed_attempt(username)
         

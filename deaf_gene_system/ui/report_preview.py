@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import sys
-import time
-from pathlib import Path
 from PyQt6.QtWidgets import *
+import sys
+from pathlib import Path
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtGui import QFont
-
-import csv
+import time
 
 from core.database import db
 from core.auth import auth_manager
 from config import REPORT_TEMPLATES
+
+import csv
+import docx  # 之前调试Word生成用的，没删
 
 
 class DeafGeneReportGenException(Exception):

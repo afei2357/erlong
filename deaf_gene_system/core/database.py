@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# 权属说明：数据库模块
 
+import sys
 from pathlib import Path
 import sqlite3
-import sys
 import hashlib
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 
-import csv
 import os
+import csv
 
 from config import DATABASE_CONFIG, DEFAULT_USERS
+
+# import pymysql  # 之前想换成MySQL，后来还是用SQLite了
 
 
 class DatabaseError(Exception):
@@ -29,12 +30,14 @@ class RecordNotFoundError(DatabaseError):
 
 class DeafGeneDbManager:
     def __init__(self, db_path: Path = None):
+        # 数据库路径，默认从配置里取，也可以手动指定
         self.db_path = db_path or DATABASE_CONFIG["path"]
+        # 确保数据目录存在，之前忘了建目录导致报错
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.connection = None
-        self._debug_mode = True
+        self._debug_mode = True  # 调试模式，上线记得关掉
         
-        # 临时记录执行的查询次数，方便排查性能问题
+        # 临时记录查询次数，之前遇到过性能问题，靠这个排查出来的
         self._query_count = 0
         self._last_query_time = None
         
@@ -45,6 +48,7 @@ class DeafGeneDbManager:
         try:
             print(f"连接数据库: {self.db_path}", file=sys.stderr)
             
+            # 连接数据库，row_factory设为Row，这样查出来是字典格式，方便用
             self.connection = sqlite3.connect(str(self.db_path))
             self.connection.row_factory = sqlite3.Row
             
@@ -58,8 +62,10 @@ class DeafGeneDbManager:
             self.connection.close()
             
     def execute_query(self, query: str, params: tuple = None) -> sqlite3.Cursor:
+        # 计数加一，方便统计查询次数
         self._query_count += 1
         
+        # 调试模式下打印SQL，方便排查问题
         if self._debug_mode:
             print(f"SQL: {query}", file=sys.stderr)
             if params:
@@ -67,6 +73,7 @@ class DeafGeneDbManager:
         
         cursor = self.connection.cursor()
         try:
+            # 带参数的查询更安全，防止SQL注入
             if params:
                 cursor.execute(query, params)
             else:
@@ -77,11 +84,13 @@ class DeafGeneDbManager:
             raise DatabaseError(f"SQL执行失败: {str(e)}")
         
     def fetch_one(self, query: str, params: tuple = None) -> Optional[Dict]:
+        # 查询单条记录，查不到返回None
         cursor = self.execute_query(query, params)
         row = cursor.fetchone()
         return dict(row) if row else None
         
     def fetch_all(self, query: str, params: tuple = None) -> List[Dict]:
+        # 查询多条记录，返回列表
         cursor = self.execute_query(query, params)
         results = [dict(row) for row in cursor.fetchall()]
         
@@ -91,14 +100,17 @@ class DeafGeneDbManager:
         return results
         
     def commit(self):
+        # 提交事务，之前忘了commit导致数据没保存
         self.connection.commit()
         
     def rollback(self):
+        # 回滚事务，出错时用
         self.connection.rollback()
         
     def init_database(self):
         print(f"初始化数据库表...", file=sys.stderr)
         
+        # 创建所有表，顺序不能乱，后面的表依赖前面的
         self._create_users_table()
         self._create_samples_table()
         self._create_gene_data_table()
@@ -107,6 +119,7 @@ class DeafGeneDbManager:
         self._create_templates_table()
         
         self.commit()
+        # 创建默认用户，第一次用的时候至少有个admin可以登录
         self.init_default_users()
     
     def _create_users_table(self):

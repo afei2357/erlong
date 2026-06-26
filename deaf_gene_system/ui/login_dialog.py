@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# 权属说明：登录模块
 
-from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QPixmap, QPainter, QColor, QPen, QIcon
+from PyQt6.QtWidgets import *
 from pathlib import Path
 
 import os
 
-from config import SOFTWARE_INFO, USER_ROLES
 from core.auth import auth_manager
+from config import SOFTWARE_INFO, USER_ROLES
+
+import sys  # 之前调试用的，没删
 
 
 class DeafGeneLoginException(Exception):
